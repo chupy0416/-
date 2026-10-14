@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>3D 젠가 (15층)</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; font-family: -apple-system, "Pretendard", "Noto Sans KR", "Malgun Gothic", sans-serif; }
+  body { background: linear-gradient(180deg, #bcd8f0 0%, #f4e8d6 100%); user-select: none; -webkit-user-select: none; }
+  canvas { display: block; touch-action: none; }
+
+  /* 상단 HUD */
+  #hud { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 5; pointer-events: none; }
+  .stat { background: rgba(255,255,255,0.82); backdrop-filter: blur(6px); border-radius: 12px; padding: 8px 16px; text-align: center; min-width: 84px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+  .stat .label { font-size: 12px; color: #6b5a45; }
+  .stat .value { font-size: 22px; font-weight: 700; color: #3d2b14; }
+  #restartTop { position: fixed; top: 14px; right: 14px; z-index: 6; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 10px; padding: 10px 18px; background: #8a5a2b; color: #fff; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+  button:hover { background: #a06a33; }
+
+  /* 안내 문구 / 토스트 */
+  #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #5a4630; background: rgba(255,255,255,0.7); padding: 6px 14px; border-radius: 999px; z-index: 5; pointer-events: none; text-align: center; }
+  #toast { position: fixed; top: 90px; left: 50%; transform: translateX(-50%); background: rgba(40,28,14,.88); color: #fff; padding: 10px 18px; border-radius: 10px; font-size: 15px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 7; }
+  #toast.show { opacity: 1; }
+
+  /* 게임 오버 / 클리어 오버레이 */
+  #overlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(30,20,10,.45); z-index: 10; }
+  #overlay.show { display: flex; }
+  #panel { background: #fff8ec; border-radius: 18px; padding: 28px 36px; text-align: center; min-width: 280px; box-shadow: 0 10px 40px rgba(0,0,0,.35); }
+  #panel h2 { margin: 0 0 12px; font-size: 28px; color: #3d2b14; }
+  #panel p { margin: 6px 0; color: #5a4630; font-size: 17px; }
+  #panel button { margin-top: 18px; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+  <div class="stat"><div class="label">뺀 블록</div><div class="value" id="hudRemoved">0</div></div>
+  <div class="stat"><div class="label">남은 블록</div><div class="value" id="hudRemain">45</div></div>
+  <div class="stat"><div class="label">탑 높이(층)</div><div class="value" id="hudFloors">15</div></div>
+</div>
+<button id="restartTop">다시 시작</button>
+<div id="hint">왼쪽 드래그: 블록 빼기 · 오른쪽 드래그: 카메라 회전 · 휠: 줌 (모바일: 한 손가락 블록, 두 손가락 회전/줌) · 탑 밖으로 빼서 놓으면 사라져요</div>
+<div id="toast"></div>
+<div id="overlay"><div id="panel"><h2 id="ovTitle"></h2><div id="ovBody"></div><button id="restartBtn">다시 시작</button></div></div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+    "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import * as CANNON from 'cannon-es';
+
+/* =====================================================
+ *  주요 파라미터 (여기만 고치면 게임 느낌이 바뀝니다)
+ * ===================================================== */
+const CFG = {
+  LAYERS: 15,              // 탑 층수
+  BLOCKS_PER_LAYER: 3,     // 층당 블록 수
+  BLOCK_L: 3,              // 블록 길이
+  BLOCK_W: 1,              // 블록 폭
+  BLOCK_H: 0.6,            // 블록 높이
+  GAP: 0.01,               // 블록 사이 간격 (겹침 오류 방지)
+
+  MASS: 1,                 // 블록 질량 (모두 동일)
+  FRICTION: 0.7,           // 마찰 (0.6~0.8)
+  RESTITUTION: 0.0,        // 반발력 (젠가는 거의 안 튐)
+  GRAVITY: -9.8,
+  TIME_STEP: 1 / 60,       // 고정 타임스텝
+  MAX_SUBSTEPS: 5,         // 서브스텝 최대 횟수
+  SOLVER_ITER: 20,         // solver 반복 횟수 (높을수록 탑이 안정적)
+  SLEEP_SPEED: 0.15,       // 이 속도 미만이면 잠들기
+  SLEEP_TIME: 0.4,         // 이 시간 동안 느리면 잠들기
+
+  SETTLE_TIME: 1.2,        // 시작 후 물리 안정화 대기 시간(초)
+
+  REMOVE_DIST: 3.2,        // 탑 중심에서 이 거리(체비쇼프) 이상 벗어나면 "뺀 것"으로 판정
+  FADE_TIME: 0.5,          // 사라지는 시간(초)
+
+  COLLAPSE_COUNT: 3,       // 이 개수 이상 쓰러지면 무너짐
+  FALL_Y: 0.62,            // 1층 이상 블록이 이 높이 아래로 떨어지면 쓰러진 것
+  FALL_DIST: 3.8,          // 탑에서 이 거리 이상 밖에 있으면 쓰러진 것
+  FALL_TILT_COS: 0.34,     // 블록 윗면 방향 y값이 이보다 작으면(약 70° 이상 기울면) 쓰러진 것
+
+  DRAG_FRICTION: 0.01,     // 뽑는 중인 블록의 마찰 (낮을수록 주변 블록이 안 딸려옴)
+  DRAG_TOWER_FRICTION: 0.4, // 뽑는 동안 나머지 블록끼리의 마찰 (평소는 FRICTION)
+  DRAG_MAX_FORCE: 200,     // 블록 끄는 힘 한계
+  DRAG_LERP: 0.35,         // 마우스 따라가는 부드러움 (0~1)
+  DRAG_LIMIT: 8,           // 끌 수 있는 최대 범위
+};
+
+// 충돌 그룹
+const GROUP_GROUND = 1, GROUP_BLOCK = 2, GROUP_JOINT = 4;
+
+/* =====================================================
+ *  Three.js 기본 세팅
+ * ===================================================== */
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+const canvas = renderer.domElement;
+
+const scene = new THREE.Scene();
+
+const towerHeight = CFG.LAYERS * (CFG.BLOCK_H + CFG.GAP);
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(11, towerHeight * 0.75, 14);   // 탑 전체가 보이도록
+
+// 카메라 컨트롤: 왼쪽 버튼은 블록 잡기용이라 비워두고, 오른쪽=회전, 휠=줌
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, towerHeight * 0.5, 0);      // 탑 중간 높이
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 6;
+controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI / 2 - 0.02;       // 바닥 아래로 못 내려가게
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: null, TWO: THREE.TOUCH.DOLLY_ROTATE };
+controls.update();
+
+// 조명
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(8, 20, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14;   sun.shadow.camera.bottom = -14;
+sun.shadow.camera.near = 1;   sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0005;
+scene.add(sun);
+
+// 나무 질감(캔버스로 간단히 생성)
+function makeWoodTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e0b97f';
+  g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 70; i++) {
+    const y = Math.random() * 256;
+    g.strokeStyle = `rgba(${110 + Math.random() * 40}, ${70 + Math.random() * 30}, 30, ${0.08 + Math.random() * 0.18})`;
+    g.lineWidth = 0.6 + Math.random() * 2;
+    g.beginPath();
+    g.moveTo(0, y);
+    for (let x = 0; x <= 256; x += 32) g.lineTo(x, y + Math.sin(x * 0.03 + i) * 2.5);
+    g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+const woodTex = makeWoodTexture();
+
+// 테이블(바닥)
+const table = new THREE.Mesh(
+  new THREE.CylinderGeometry(12, 12, 0.5, 64),
+  new THREE.MeshStandardMaterial({ color: 0x7b5634, roughness: 0.9 })
+);
+table.position.y = -0.25;
+table.receiveShadow = true;
+scene.add(table);
+
+/* =====================================================
+ *  cannon-es 물리 세계
+ * ===================================================== */
+const world = new CANNON.World({ gravity: new CANNON.Vec3(0, CFG.GRAVITY, 0) });
+world.broadphase = new CANNON.SAPBroadphase(world);
+world.allowSleep = true;
+world.solver.iterations = CFG.SOLVER_ITER;
+
+const woodMat = new CANNON.Material('wood');
+const contact = new CANNON.ContactMaterial(woodMat, woodMat, {
+  friction: CFG.FRICTION,
+  restitution: CFG.RESTITUTION,
+  contactEquationStiffness: 1e7,
+  contactEquationRelaxation: 4,
+  frictionEquationStiffness: 1e7,
+  frictionEquationRelaxation: 4,
+});
+world.addContactMaterial(contact);
+world.defaultContactMaterial = contact;
+
+// 뽑는 중인 블록 전용 재질: 이웃 블록과의 마찰을 낮춰서 같이 딸려오지 않게 함
+const dragMat = new CANNON.Material('drag');
+world.addContactMaterial(new CANNON.ContactMaterial(dragMat, woodMat, {
+  friction: CFG.DRAG_FRICTION,
+  restitution: CFG.RESTITUTION,
+  contactEquationStiffness: 1e7,
+  contactEquationRelaxation: 4,
+  frictionEquationStiffness: 1e7,
+  frictionEquationRelaxation: 4,
+}));
+
+// 바닥 (정적 평면)
+const ground = new CANNON.Body({ mass: 0, material: woodMat, collisionFilterGroup: GROUP_GROUND, collisionFilterMask: GROUP_BLOCK });
+ground.addShape(new CANNON.Plane());
+ground.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+world.addBody(ground);
+
+// 드래그용 보이지 않는 조인트 바디 (아무것과도 충돌 안 함)
+const jointBody = new CANNON.Body({ mass: 0, collisionFilterGroup: GROUP_JOINT, collisionFilterMask: 0 });
+jointBody.addShape(new CANNON.Sphere(0.1));
+world.addBody(jointBody);
+
+/* =====================================================
+ *  블록 생성 / 탑 쌓기
+ * ===================================================== */
+let blocks = [];   // { body, mesh, layer, fading, fadeT }
+
+function createBlock(layer, hx, hy, hz, x, y, z) {
+  const body = new CANNON.Body({
+    mass: CFG.MASS,
+    material: woodMat,
+    position: new CANNON.Vec3(x, y, z),
+    allowSleep: true,
+    sleepSpeedLimit: CFG.SLEEP_SPEED,
+    sleepTimeLimit: CFG.SLEEP_TIME,
+    linearDamping: 0.1,
+    angularDamping: 0.1,
+    collisionFilterGroup: GROUP_BLOCK,
+    collisionFilterMask: GROUP_GROUND | GROUP_BLOCK,
+  });
+  body.addShape(new CANNON.Box(new CANNON.Vec3(hx, hy, hz)));
+  world.addBody(body);
+
+  // 블록마다 밝기/색을 살짝 다르게
+  const color = new THREE.Color().setHSL(0.08 + Math.random() * 0.02, 0.25 + Math.random() * 0.2, 0.78 + Math.random() * 0.18);
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2),
+    new THREE.MeshStandardMaterial({ map: woodTex, color, roughness: 0.75, metalness: 0 })
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.position.set(x, y, z);
+  scene.add(mesh);
+
+  const block = { body, mesh, layer, fading: false, fadeT: 0 };
+  mesh.userData.block = block;
+  blocks.push(block);
+}
+
+function buildTower() {
+  const { LAYERS, BLOCKS_PER_LAYER: N, BLOCK_L: L, BLOCK_W: W, BLOCK_H: H, GAP } = CFG;
+  for (let i = 0; i < LAYERS; i++) {
+    const alongX = i % 2 === 0;                    // 짝수 층은 X축 방향, 홀수 층은 Z축 방향
+    const y = H / 2 + GAP + i * (H + GAP);
+    for (let j = 0; j < N; j++) {
+      const off = (j - (N - 1) / 2) * (W + GAP);
+      const hx = alongX ? L / 2 : W / 2;
+      const hz = alongX ? W / 2 : L / 2;
+      createBlock(i, hx, H / 2, hz, alongX ? 0 : off, y, alongX ? off : 0);
+    }
+  }
+}
+
+function disposeBlock(b) {
+  scene.remove(b.mesh);
+  b.mesh.geometry.dispose();
+  b.mesh.material.dispose();      // 텍스처는 공유라서 dispose 하지 않음
+  world.removeBody(b.body);
+}
+
+/* =====================================================
+ *  게임 상태 / HUD
+ * ===================================================== */
+let state = 'settling';          // settling → playing → over | clear
+let settleT = 0;
+let removedCount = 0;
+let lastGoodFloors = CFG.LAYERS;
+let drag = null;
+let hovered = null;
+
+const $ = (id) => document.getElementById(id);
+const hudRemoved = $('hudRemoved'), hudRemain = $('hudRemain'), hudFloors = $('hudFloors');
+const toastEl = $('toast'), overlay = $('overlay');
+let toastTimer = 0;
+
+function toast(msg, ms = 1400) {
+  toastEl.textContent = msg;
+  toastEl.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), ms);
+}
+
+function aliveBlocks() { return blocks.filter(b => !b.fading); }
+
+// 현재 탑 높이(층수): 탑 범위 안에 있는 가장 높은 블록 기준
+function calcFloors() {
+  let maxY = -Infinity;
+  for (const b of aliveBlocks()) {
+    if (drag && drag.block === b) continue;
+    const p = b.body.position;
+    if (Math.max(Math.abs(p.x), Math.abs(p.z)) > CFG.REMOVE_DIST) continue;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (maxY === -Infinity) return 0;
+  return Math.max(1, Math.round((maxY - CFG.BLOCK_H / 2 - CFG.GAP) / (CFG.BLOCK_H + CFG.GAP)) + 1);
+}
+
+function showOverlay(title, html) {
+  $('ovTitle').textContent = title;
+  $('ovBody').innerHTML = html;
+  overlay.classList.add('show');
+}
+
+function resetGame() {
+  endDrag(false, true);
+  for (const b of blocks) disposeBlock(b);
+  blocks = [];
+  hovered = null;
+  removedCount = 0;
+  lastGoodFloors = CFG.LAYERS;
+  overlay.classList.remove('show');
+  buildTower();
+  state = 'settling';
+  settleT = 0;
+  toast('탑을 안정화하는 중…', 1000);
+}
+
+/* =====================================================
+ *  마우스/터치 : 블록 잡기
+ * ===================================================== */
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+function setNDC(e) {
+  const r = canvas.getBoundingClientRect();
+  ndc.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+  ndc.y = -((e.clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+}
+
+function pickBlock() {
+  const meshes = blocks.filter(b => !b.fading).map(b => b.mesh);
+  const hit = raycaster.intersectObjects(meshes, false)[0];
+  return hit ? { block: hit.object.userData.block, point: hit.point } : null;
+}
+
+function setEmissive(b, hex) { if (b) b.mesh.material.emissive.setHex(hex); }
+
+function startDrag(hit, e) {
+  const b = hit.block;
+  const p = hit.point;
+  const local = new CANNON.Vec3();
+  b.body.pointToLocalFrame(new CANNON.Vec3(p.x, p.y, p.z), local);
+
+  jointBody.position.set(p.x, p.y, p.z);
+  const constraint = new CANNON.PointToPointConstraint(jointBody, new CANNON.Vec3(0, 0, 0), b.body, local, CFG.DRAG_MAX_FORCE);
+  world.addConstraint(constraint);
+
+  // 드래그 중엔 회전을 잠가서 블록이 빙글빙글 돌지 않게 함
+  b.body.fixedRotation = true;
+  b.body.updateMassProperties();
+  b.body.angularVelocity.set(0, 0, 0);
+  b.body.linearDamping = 0.5;
+  b.body.material = dragMat;                   // 마찰 낮추기
+  contact.friction = CFG.DRAG_TOWER_FRICTION;  // 나머지 블록 마찰도 잠시 낮춤
+  b.body.wakeUp();
+
+  drag = {
+    block: b, constraint, pointerId: e.pointerId,
+    axis: (b.layer % 2 === 0) ? 'x' : 'z',                      // 블록의 긴 방향 (짝수 층 X, 홀수 층 Z)
+    lockPos: new CANNON.Vec3(b.body.position.x, b.body.position.y, b.body.position.z), // 이동 전 위치 (옆/위아래 고정용)
+    startPoint: p.clone(),
+    plane: new THREE.Plane(new THREE.Vector3(0, 1, 0), -p.y),   // 잡은 높이의 수평면 위에서 이동
+    target: new THREE.Vector3(p.x, p.y, p.z),
+  };
+  controls.enabled = false;                    // 블록 잡는 동안 카메라 회전 비활성화
+  canvas.setPointerCapture(e.pointerId);
+  canvas.style.cursor = 'grabbing';
+  setEmissive(b, 0x7a4a10);
+}
+
+function endDrag(allowRemove = true, silent = false) {
+  if (!drag) return;
+  const b = drag.block;
+  world.removeConstraint(drag.constraint);
+  b.body.fixedRotation = false;
+  b.body.updateMassProperties();
+  b.body.linearDamping = 0.1;
+  b.body.material = woodMat;                   // 마찰 원래대로
+  contact.friction = CFG.FRICTION;
+  b.body.wakeUp();
+  try { canvas.releasePointerCapture(drag.pointerId); } catch (_) {}
+  drag = null;
+  controls.enabled = true;
+  canvas.style.cursor = 'default';
+  setEmissive(b, 0x000000);
+
+  // 탑 밖으로 충분히 빼서 놓았으면 -> 사라지기
+  const p = b.body.position;
+  if (allowRemove && !silent && Math.max(Math.abs(p.x), Math.abs(p.z)) > CFG.REMOVE_DIST) {
+    b.fading = true;
+    b.fadeT = 0;
+    b.mesh.material.transparent = true;
+    b.mesh.castShadow = false;
+    b.body.collisionFilterMask = GROUP_GROUND;   // 다른 블록과는 더 이상 충돌 안 함
+    removedCount++;
+    for (const o of blocks) o.body.wakeUp();     // 지지대가 사라졌으니 위 블록들 깨우기
+  }
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (drag) { endDrag(); return; }                      // 두 번째 손가락 -> 드래그 종료 후 카메라 조작
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+  if (state === 'settling') { toast('탑이 안정화되는 중이에요…', 900); return; }
+  if (state !== 'playing') return;
+  setNDC(e);
+  const hit = pickBlock();
+  if (!hit) return;
+  if (hit.block.layer === CFG.LAYERS - 1) { toast('맨 위층은 뽑을 수 없어요'); return; }
+  startDrag(hit, e);
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  setNDC(e);
+  if (drag) {
+    if (e.pointerId !== drag.pointerId) return;
+    const pt = new THREE.Vector3();
+    if (raycaster.ray.intersectPlane(drag.plane, pt)) {
+      const lim = CFG.DRAG_LIMIT;
+      pt.x = Math.max(-lim, Math.min(lim, pt.x));
+      pt.z = Math.max(-lim, Math.min(lim, pt.z));
+      // 블록 방향으로만: 긴 축 말고 다른 방향 값은 처음 잡은 위치로 고정
+      if (drag.axis === 'x') pt.z = drag.startPoint.z; else pt.x = drag.startPoint.x;
+      drag.target.copy(pt);
+    }
+    return;
+  }
+  if (e.pointerType !== 'mouse' || state !== 'playing') return;
+  // 마우스 올렸을 때 하이라이트 / 맨 위층은 금지 표시
+  const hit = pickBlock();
+  const nb = hit ? hit.block : null;
+  if (nb !== hovered) {
+    setEmissive(hovered, 0x000000);
+    hovered = nb;
+    if (nb && nb.layer !== CFG.LAYERS - 1) setEmissive(nb, 0x3a2a10);
+  }
+  canvas.style.cursor = !nb ? 'default' : (nb.layer === CFG.LAYERS - 1 ? 'not-allowed' : 'grab');
+});
+
+canvas.addEventListener('pointerup', (e) => { if (drag && e.pointerId === drag.pointerId) endDrag(); });
+canvas.addEventListener('pointercancel', (e) => { if (drag && e.pointerId === drag.pointerId) endDrag(); });
+
+/* =====================================================
+ *  매 프레임 처리
+ * ===================================================== */
+function updateDrag() {
+  const jb = jointBody.position;
+  jb.x += (drag.target.x - jb.x) * CFG.DRAG_LERP;
+  jb.y += (drag.target.y - jb.y) * CFG.DRAG_LERP;
+  jb.z += (drag.target.z - jb.z) * CFG.DRAG_LERP;
+  for (const o of blocks) o.body.wakeUp();       // 건드리는 동안은 모든 블록을 깨워 둠
+
+  // 탑 밖으로 충분히 나왔으면 초록 하이라이트 ("놓으면 사라져요")
+  const p = drag.block.body.position;
+  const out = Math.max(Math.abs(p.x), Math.abs(p.z)) > CFG.REMOVE_DIST;
+  setEmissive(drag.block, out ? 0x1f7a2a : 0x7a4a10);
+}
+
+function updateFades(dt) {
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    const b = blocks[i];
+    if (!b.fading) continue;
+    b.fadeT += dt;
+    const k = Math.min(b.fadeT / CFG.FADE_TIME, 1);
+    b.mesh.material.opacity = 1 - k;
+    if (k >= 1) {
+      disposeBlock(b);
+      blocks.splice(i, 1);
+    }
+  }
+}
+
+function checkCollapse() {
+  let fallen = 0;
+  const up = new THREE.Vector3();
+  for (const b of blocks) {
+    if (b.fading || (drag && drag.block === b)) continue;      // 드래그 중/사라지는 중 블록은 제외
+    const p = b.body.position;
+    up.set(0, 1, 0).applyQuaternion(b.mesh.quaternion);
+    const dist = Math.max(Math.abs(p.x), Math.abs(p.z));
+    if ((b.layer >= 1 && p.y < CFG.FALL_Y) || dist > CFG.FALL_DIST || up.y < CFG.FALL_TILT_COS) fallen++;
+  }
+  return fallen;
+}
+
+function gameLogic() {
+  const alive = aliveBlocks();
+  const remain = alive.length;
+  const floors = calcFloors();
+  hudRemoved.textContent = removedCount;
+  hudRemain.textContent = remain;
+  hudFloors.textContent = floors;
+
+  if (state === 'playing') {
+    const fallen = checkCollapse();
+    if (fallen >= CFG.COLLAPSE_COUNT) {
+      state = 'over';
+      endDrag(false);
+      setTimeout(() => {
+        if (state === 'over') showOverlay('게임 오버 💥',
+          `<p>탑이 무너졌어요!</p><p>뺀 블록 <b>${removedCount}</b>개</p><p>남은 블록 <b>${remain}</b>개</p><p>무너지기 전 탑 높이 <b>${lastGoodFloors}</b>층</p>`);
+      }, 900);
+    } else {
+      if (fallen === 0) lastGoodFloors = floors;
+      // 뽑을 수 있는 블록(맨 위층 제외)이 없으면 클리어
+      const pullable = alive.filter(b => b.layer < CFG.LAYERS - 1).length;
+      if (pullable === 0) {
+        state = 'clear';
+        showOverlay('클리어! 🎉', `<p>모든 블록을 뽑았어요!</p><p>뺀 블록 <b>${removedCount}</b>개</p><p>탑 높이 <b>${floors}</b>층</p>`);
+      }
+    }
+  }
+}
+
+let last = performance.now();
+function animate(now) {
+  requestAnimationFrame(animate);
+  const dt = Math.min((now - last) / 1000, 0.1);
+  last = now;
+
+  if (drag) updateDrag();
+  world.step(CFG.TIME_STEP, dt, CFG.MAX_SUBSTEPS);     // 고정 타임스텝 + 서브스텝
+
+  // 뽑는 블록은 긴 방향 직선 위에서만 움직이게 강제 (옆/위아래 이동·회전 차단)
+  if (drag) {
+    const bd = drag.block.body, lp = drag.lockPos;
+    bd.position.y = lp.y;
+    bd.velocity.y = 0;
+    if (drag.axis === 'x') { bd.position.z = lp.z; bd.velocity.z = 0; }
+    else { bd.position.x = lp.x; bd.velocity.x = 0; }
+    bd.angularVelocity.set(0, 0, 0);
+  }
+
+  // 물리 바디 -> 메시 동기화
+  for (const b of blocks) {
+    b.mesh.position.copy(b.body.position);
+    b.mesh.quaternion.copy(b.body.quaternion);
+  }
+
+  updateFades(dt);
+
+  if (state === 'settling') {
+    settleT += dt;
+    if (settleT >= CFG.SETTLE_TIME) {
+      state = 'playing';
+      toast('시작! 블록을 뽑아 보세요 (맨 위층은 금지)', 1800);
+    }
+  }
+  gameLogic();
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+/* =====================================================
+ *  리사이즈 / 버튼
+ * ===================================================== */
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+$('restartTop').addEventListener('click', resetGame);
+$('restartBtn').addEventListener('click', resetGame);
+
+buildTower();
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
