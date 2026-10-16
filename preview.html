@@ -1,0 +1,2670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+
+<meta
+    name="viewport"
+    content="width=device-width,
+             initial-scale=1.0,
+             maximum-scale=1.0,
+             user-scalable=no"
+>
+
+<title>Block Blast</title>
+
+<style>
+
+/* ==================================================
+   기본 설정
+================================================== */
+
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+    margin: 0;
+    padding: 0;
+
+    width: 100%;
+    min-height: 100%;
+
+    font-family:
+        Arial,
+        "Noto Sans KR",
+        sans-serif;
+}
+
+body {
+
+    min-height: 100vh;
+
+    background:
+        linear-gradient(
+            180deg,
+            #172746 0%,
+            #4b6db5 100%
+        );
+
+    color: white;
+
+    display: flex;
+    justify-content: center;
+
+    overflow-x: hidden;
+}
+
+
+/* ==================================================
+   게임
+================================================== */
+
+.game {
+
+    width: min(94vw, 520px);
+
+    padding:
+        28px
+        0
+        25px;
+
+    text-align: center;
+}
+
+
+/* ==================================================
+   제목
+================================================== */
+
+h1 {
+
+    margin:
+        0
+        0
+        15px;
+
+    font-size: 38px;
+
+    line-height: 1.1;
+
+    text-shadow:
+        0 4px 8px
+        rgba(0,0,0,0.3);
+}
+
+
+/* ==================================================
+   점수
+================================================== */
+
+.score-area {
+
+    display: flex;
+
+    gap: 12px;
+
+    margin-bottom: 4px;
+}
+
+.score-box {
+
+    flex: 1;
+
+    padding:
+        9px
+        5px
+        12px;
+
+    background:
+        rgba(0,0,0,0.22);
+
+    border-radius: 17px;
+}
+
+.score-title {
+
+    font-size: 14px;
+
+    opacity: 0.8;
+
+    margin-bottom: 2px;
+}
+
+.score-number {
+
+    font-size: 28px;
+
+    font-weight: bold;
+}
+
+
+/* ==================================================
+   콤보
+================================================== */
+
+#combo {
+
+    height: 38px;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    font-size: 22px;
+
+    font-weight: bold;
+
+    opacity: 0;
+
+    transform:
+        scale(0.6)
+        translateY(5px);
+
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease;
+}
+
+#combo.show {
+
+    opacity: 1;
+
+    transform:
+        scale(1)
+        translateY(0);
+}
+
+
+/* ==================================================
+   게임판
+================================================== */
+
+.board {
+
+    width: 100%;
+
+    aspect-ratio: 1 / 1;
+
+    padding: 7px;
+
+    display: grid;
+
+    grid-template-columns:
+        repeat(8, 1fr);
+
+    grid-template-rows:
+        repeat(8, 1fr);
+
+    gap: 5px;
+
+    background:
+        rgba(0,0,0,0.31);
+
+    border-radius: 18px;
+
+    touch-action: none;
+}
+
+.cell {
+
+    min-width: 0;
+    min-height: 0;
+
+    background:
+        #dce4f2;
+
+    border-radius: 7px;
+
+    position: relative;
+}
+
+.cell.filled {
+
+    background:
+        var(--block-color);
+
+    box-shadow:
+
+        inset
+        0 3px 0
+        rgba(255,255,255,0.28),
+
+        0 3px 5px
+        rgba(0,0,0,0.2);
+}
+
+
+/* ==================================================
+   제거 애니메이션
+================================================== */
+
+.cell.removing {
+
+    animation:
+        blockRemove
+        0.4s
+        ease forwards;
+}
+
+@keyframes blockRemove {
+
+    0% {
+
+        transform:
+            scale(1)
+            rotate(0deg);
+
+        opacity: 1;
+    }
+
+    30% {
+
+        transform:
+            scale(1.18)
+            rotate(4deg);
+
+        opacity: 1;
+    }
+
+    65% {
+
+        transform:
+            scale(0.65)
+            rotate(-7deg);
+
+        opacity: 0.7;
+    }
+
+    100% {
+
+        transform:
+            scale(0);
+
+        opacity: 0;
+    }
+}
+
+
+/* ==================================================
+   안내 문구
+================================================== */
+
+.title {
+
+    margin:
+        11px
+        0
+        7px;
+
+    font-size: 16px;
+}
+
+
+/* ==================================================
+   블록 보관 영역
+
+   중요:
+   기존처럼 3칸 grid를 사용하지 않는다.
+
+   남은 블록들을 flex로 가운데 정렬한다.
+================================================== */
+
+.pieces {
+
+    width: 100%;
+
+    min-height: 125px;
+
+    padding:
+        8px
+        12px;
+
+    display: flex;
+
+    justify-content: center;
+
+    align-items: center;
+
+    gap: 25px;
+
+    background:
+        rgba(0,0,0,0.18);
+
+    border-radius: 18px;
+
+    overflow: visible;
+}
+
+
+/* ==================================================
+   아래 블록
+
+   사용한 블록은 DOM에서 제거하기 때문에
+   여기서 빈 자리를 만들지 않는다.
+================================================== */
+
+.piece {
+
+    width: 100px;
+    height: 100px;
+
+    flex:
+        0 0 100px;
+
+    display: flex;
+
+    justify-content: center;
+    align-items: center;
+
+    touch-action: none;
+
+    user-select: none;
+
+    cursor: grab;
+
+    transition:
+        transform 0.12s ease,
+        opacity 0.12s ease;
+}
+
+.piece:active {
+
+    cursor: grabbing;
+}
+
+
+/* ==================================================
+   작은 블록
+================================================== */
+
+.mini {
+
+    display: grid;
+
+    gap: 3px;
+}
+
+.mini-cell {
+
+    width: 22px;
+    height: 22px;
+
+    border-radius: 4px;
+
+    box-shadow:
+        inset
+        0 2px 0
+        rgba(255,255,255,0.25);
+}
+
+.empty {
+
+    visibility: hidden;
+}
+
+
+/* ==================================================
+   드래그 중인 블록
+================================================== */
+
+.drag-piece {
+
+    position: fixed;
+
+    z-index: 9999;
+
+    pointer-events: none;
+
+    transform:
+        translate(-50%, -120%)
+        scale(1.15);
+
+    opacity: 0.94;
+}
+
+
+/* ==================================================
+   미리보기
+================================================== */
+
+.cell.preview {
+
+    opacity: 0.65;
+}
+
+.cell.bad-preview {
+
+    background:
+        #ff5555 !important;
+
+    opacity: 0.65;
+}
+
+
+/* ==================================================
+   점수 팝업
+================================================== */
+
+.score-popup {
+
+    position: fixed;
+
+    z-index: 10000;
+
+    pointer-events: none;
+
+    font-size: 25px;
+
+    font-weight: bold;
+
+    animation:
+        scorePopup
+        0.8s
+        ease forwards;
+}
+
+@keyframes scorePopup {
+
+    0% {
+
+        opacity: 0;
+
+        transform:
+            translate(-50%, 0)
+            scale(0.7);
+    }
+
+    20% {
+
+        opacity: 1;
+
+        transform:
+            translate(-50%, -10px)
+            scale(1.1);
+    }
+
+    100% {
+
+        opacity: 0;
+
+        transform:
+            translate(-50%, -70px)
+            scale(1.2);
+    }
+}
+
+
+/* ==================================================
+   게임 오버
+================================================== */
+
+.game-over {
+
+    display: none;
+
+    position: fixed;
+
+    inset: 0;
+
+    z-index: 20000;
+
+    background:
+        rgba(0,0,0,0.75);
+
+    justify-content: center;
+    align-items: center;
+}
+
+.game-over.show {
+
+    display: flex;
+}
+
+.game-over-box {
+
+    width: min(85vw, 350px);
+
+    padding: 30px;
+
+    background: white;
+
+    color: #222;
+
+    border-radius: 22px;
+
+    text-align: center;
+}
+
+.game-over-box h2 {
+
+    margin:
+        0
+        0
+        12px;
+
+    font-size: 32px;
+}
+
+.game-over-box p {
+
+    margin:
+        8px 0;
+}
+
+button {
+
+    border: none;
+
+    padding:
+        13px
+        27px;
+
+    border-radius: 12px;
+
+    background:
+        #4b6db5;
+
+    color: white;
+
+    font-size: 19px;
+
+    font-weight: bold;
+
+    cursor: pointer;
+}
+
+button:active {
+
+    transform:
+        scale(0.95);
+}
+
+
+/* ==================================================
+   작은 화면
+================================================== */
+
+@media (max-width: 390px) {
+
+    .game {
+
+        width: 94vw;
+    }
+
+    h1 {
+
+        font-size: 32px;
+    }
+
+    .piece {
+
+        width: 82px;
+        height: 90px;
+
+        flex-basis: 82px;
+    }
+
+    .pieces {
+
+        gap: 12px;
+    }
+
+    .mini-cell {
+
+        width: 19px;
+        height: 19px;
+    }
+
+}
+
+</style>
+</head>
+
+
+<body>
+
+
+<div class="game">
+
+
+    <!-- 제목 -->
+
+    <h1>
+        🧱 Block Blast
+    </h1>
+
+
+    <!-- 점수 -->
+
+    <div class="score-area">
+
+        <div class="score-box">
+
+            <div class="score-title">
+                점수
+            </div>
+
+            <div
+                id="score"
+                class="score-number">
+                0
+            </div>
+
+        </div>
+
+
+        <div class="score-box">
+
+            <div class="score-title">
+                최고 점수
+            </div>
+
+            <div
+                id="highScore"
+                class="score-number">
+                0
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- 콤보 -->
+
+    <div id="combo">
+        🔥 COMBO!
+    </div>
+
+
+    <!-- 게임판 -->
+
+    <div
+        id="board"
+        class="board">
+    </div>
+
+
+    <!-- 설명 -->
+
+    <div class="title">
+        블록을 드래그해서 판에 놓으세요!
+    </div>
+
+
+    <!-- 블록 3개 -->
+
+    <div
+        id="pieces"
+        class="pieces">
+    </div>
+
+
+</div>
+
+
+<!-- ==================================================
+     게임 오버
+================================================== -->
+
+<div
+    id="gameOver"
+    class="game-over">
+
+    <div class="game-over-box">
+
+        <h2>
+            게임 오버!
+        </h2>
+
+        <p>
+            최종 점수
+        </p>
+
+        <h2 id="finalScore">
+            0
+        </h2>
+
+        <p>
+            최고 점수:
+            <span id="finalHighScore">
+                0
+            </span>
+        </p>
+
+        <button
+            onclick="restartGame()">
+            다시 하기
+        </button>
+
+    </div>
+
+</div>
+
+
+<script>
+
+/* ==================================================
+   기본 설정
+================================================== */
+
+const SIZE = 8;
+
+let board = [];
+
+let score = 0;
+
+let highScore =
+    Number(
+        localStorage.getItem(
+            "blockBlastHighScore"
+        )
+    ) || 0;
+
+
+/*
+    콤보
+
+    0 = 없음
+    1 = 첫 줄 제거
+    2 = 연속 2회
+    3 = 연속 3회
+    ...
+*/
+
+let combo = 0;
+
+
+/*
+    줄 제거 애니메이션 중
+*/
+
+let clearing = false;
+
+
+/*
+    현재 사용할 블록들
+*/
+
+let pieces = [];
+
+
+/*
+    현재 드래그하고 있는
+    블록 객체
+*/
+
+let draggingPiece = null;
+
+
+/*
+    드래그 중인가?
+*/
+
+let dragging = false;
+
+
+/*
+    드래그용 DOM
+*/
+
+let dragElement = null;
+
+
+/*
+    현재 놓을 위치
+*/
+
+let currentRow = -1;
+
+let currentCol = -1;
+
+
+/* ==================================================
+   블록 모양
+================================================== */
+
+const SHAPES = [
+
+    [
+        [1]
+    ],
+
+    [
+        [1,1]
+    ],
+
+    [
+        [1],
+        [1]
+    ],
+
+    [
+        [1,1,1]
+    ],
+
+    [
+        [1],
+        [1],
+        [1]
+    ],
+
+    [
+        [1,1,1,1]
+    ],
+
+    [
+        [1],
+        [1],
+        [1],
+        [1]
+    ],
+
+    [
+        [1,1],
+        [1,1]
+    ],
+
+    [
+        [1,0],
+        [1,0],
+        [1,1]
+    ],
+
+    [
+        [1,1],
+        [1,0],
+        [1,0]
+    ],
+
+    [
+        [1,1],
+        [0,1],
+        [0,1]
+    ],
+
+    [
+        [0,1],
+        [0,1],
+        [1,1]
+    ],
+
+    [
+        [1,1,1],
+        [0,1,0]
+    ],
+
+    [
+        [0,1,0],
+        [1,1,1]
+    ],
+
+    [
+        [1,0],
+        [1,1]
+    ],
+
+    [
+        [0,1],
+        [1,1]
+    ],
+
+    [
+        [1,1],
+        [1,0]
+    ],
+
+    [
+        [1,1],
+        [0,1]
+    ],
+
+    [
+        [1,1,1],
+        [1,1,1],
+        [1,1,1]
+    ]
+
+];
+
+
+/* ==================================================
+   색상
+================================================== */
+
+const COLORS = [
+
+    "#ff5c5c",
+    "#ffb84d",
+    "#4dd2ff",
+    "#6ee56e",
+    "#b36cff",
+    "#ff6fcf",
+    "#4d8dff"
+
+];
+
+
+/* ==================================================
+   게임 시작
+================================================== */
+
+function startGame() {
+
+    board = [];
+
+    score = 0;
+
+    combo = 0;
+
+    clearing = false;
+
+    dragging = false;
+
+    draggingPiece = null;
+
+    dragElement = null;
+
+
+    /*
+        8 × 8 빈 보드
+    */
+
+    for (
+        let r = 0;
+        r < SIZE;
+        r++
+    ) {
+
+        board[r] = [];
+
+        for (
+            let c = 0;
+            c < SIZE;
+            c++
+        ) {
+
+            board[r][c] = null;
+
+        }
+
+    }
+
+
+    createPieces();
+
+    renderBoard();
+
+    updateScore();
+
+    updateHighScore();
+
+    hideCombo();
+
+
+    document
+        .getElementById("gameOver")
+        .classList
+        .remove("show");
+
+}
+
+
+/* ==================================================
+   블록 3개 생성
+================================================== */
+
+function createPieces() {
+
+    pieces = [];
+
+
+    for (
+        let i = 0;
+        i < 3;
+        i++
+    ) {
+
+        const shape =
+            SHAPES[
+                Math.floor(
+                    Math.random()
+                    * SHAPES.length
+                )
+            ];
+
+
+        const color =
+            COLORS[
+                Math.floor(
+                    Math.random()
+                    * COLORS.length
+                )
+            ];
+
+
+        pieces.push({
+
+            shape: shape,
+
+            color: color
+
+        });
+
+    }
+
+
+    renderPieces();
+
+}
+
+
+/* ==================================================
+   게임판 그리기
+================================================== */
+
+function renderBoard() {
+
+    const boardElement =
+        document.getElementById(
+            "board"
+        );
+
+
+    boardElement.innerHTML = "";
+
+
+    for (
+        let r = 0;
+        r < SIZE;
+        r++
+    ) {
+
+        for (
+            let c = 0;
+            c < SIZE;
+            c++
+        ) {
+
+            const cell =
+                document.createElement(
+                    "div"
+                );
+
+
+            cell.className =
+                "cell";
+
+
+            cell.dataset.row =
+                r;
+
+            cell.dataset.col =
+                c;
+
+
+            if (
+                board[r][c] !== null
+            ) {
+
+                cell.classList
+                    .add("filled");
+
+
+                cell.style.setProperty(
+                    "--block-color",
+                    board[r][c]
+                );
+
+            }
+
+
+            boardElement.appendChild(
+                cell
+            );
+
+        }
+
+    }
+
+}
+
+
+/* ==================================================
+   아래 블록 그리기
+
+   ★ 핵심 수정 부분 ★
+
+   used 블록을 숨기는 것이 아니라
+   pieces 배열 자체에서 제거하기 때문에
+   빈 공간이 절대 생기지 않는다.
+================================================== */
+
+function renderPieces() {
+
+    const container =
+        document.getElementById(
+            "pieces"
+        );
+
+
+    container.innerHTML = "";
+
+
+    pieces.forEach(
+        piece => {
+
+            const element =
+                document.createElement(
+                    "div"
+                );
+
+
+            element.className =
+                "piece";
+
+
+            /*
+                블록의 모양을
+                미리보기로 만든다.
+            */
+
+            const mini =
+                document.createElement(
+                    "div"
+                );
+
+
+            mini.className =
+                "mini";
+
+
+            mini.style.gridTemplateColumns =
+                `repeat(
+                    ${piece.shape[0].length},
+                    22px
+                )`;
+
+
+            for (
+                let r = 0;
+                r < piece.shape.length;
+                r++
+            ) {
+
+                for (
+                    let c = 0;
+                    c < piece.shape[r].length;
+                    c++
+                ) {
+
+                    const block =
+                        document.createElement(
+                            "div"
+                        );
+
+
+                    block.className =
+                        "mini-cell";
+
+
+                    if (
+                        piece.shape[r][c]
+                    ) {
+
+                        block.style.background =
+                            piece.color;
+
+                    } else {
+
+                        block.classList
+                            .add("empty");
+
+                    }
+
+
+                    mini.appendChild(
+                        block
+                    );
+
+                }
+
+            }
+
+
+            element.appendChild(
+                mini
+            );
+
+
+            /*
+                블록 객체 자체를 넘긴다.
+
+                숫자 index를 사용하지 않기 때문에
+                블록 하나가 없어져도
+                다른 블록의 번호가 꼬이지 않는다.
+            */
+
+            setupDrag(
+                element,
+                piece
+            );
+
+
+            container.appendChild(
+                element
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   드래그 이벤트
+================================================== */
+
+function setupDrag(
+    element,
+    piece
+) {
+
+    element.addEventListener(
+        "pointerdown",
+        event => {
+
+            if (clearing) {
+                return;
+            }
+
+
+            event.preventDefault();
+
+
+            startDrag(
+                event,
+                piece,
+                element
+            );
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   드래그 시작
+================================================== */
+
+function startDrag(
+    event,
+    piece,
+    original
+) {
+
+    dragging = true;
+
+    draggingPiece = piece;
+
+
+    /*
+        원본은 살짝 흐리게
+    */
+
+    original.style.opacity =
+        "0.25";
+
+
+    /*
+        드래그용 블록
+    */
+
+    dragElement =
+        document.createElement(
+            "div"
+        );
+
+
+    dragElement.className =
+        "drag-piece";
+
+
+    const mini =
+        document.createElement(
+            "div"
+        );
+
+
+    mini.className =
+        "mini";
+
+
+    mini.style.gridTemplateColumns =
+        `repeat(
+            ${piece.shape[0].length},
+            22px
+        )`;
+
+
+    for (
+        let r = 0;
+        r < piece.shape.length;
+        r++
+    ) {
+
+        for (
+            let c = 0;
+            c < piece.shape[r].length;
+            c++
+        ) {
+
+            const block =
+                document.createElement(
+                    "div"
+                );
+
+
+            block.className =
+                "mini-cell";
+
+
+            if (
+                piece.shape[r][c]
+            ) {
+
+                block.style.background =
+                    piece.color;
+
+            } else {
+
+                block.classList
+                    .add("empty");
+
+            }
+
+
+            mini.appendChild(
+                block
+            );
+
+        }
+
+    }
+
+
+    dragElement.appendChild(
+        mini
+    );
+
+
+    document.body.appendChild(
+        dragElement
+    );
+
+
+    moveDrag(
+        event.clientX,
+        event.clientY
+    );
+
+
+    document.addEventListener(
+        "pointermove",
+        pointerMove
+    );
+
+
+    document.addEventListener(
+        "pointerup",
+        pointerUp,
+        {
+            once: true
+        }
+    );
+
+}
+
+
+/* ==================================================
+   드래그 이동
+================================================== */
+
+function pointerMove(event) {
+
+    if (!dragging) {
+        return;
+    }
+
+
+    moveDrag(
+        event.clientX,
+        event.clientY
+    );
+
+}
+
+
+/* ==================================================
+   드래그 위치 계산
+================================================== */
+
+function moveDrag(
+    x,
+    y
+) {
+
+    if (!dragElement) {
+        return;
+    }
+
+
+    dragElement.style.left =
+        x + "px";
+
+    dragElement.style.top =
+        y + "px";
+
+
+    const boardElement =
+        document.getElementById(
+            "board"
+        );
+
+
+    const rect =
+        boardElement
+        .getBoundingClientRect();
+
+
+    const cellWidth =
+        rect.width / SIZE;
+
+    const cellHeight =
+        rect.height / SIZE;
+
+
+    /*
+        손가락 위치
+    */
+
+    let col =
+        Math.floor(
+            (x - rect.left)
+            / cellWidth
+        );
+
+
+    let row =
+        Math.floor(
+            (y - rect.top)
+            / cellHeight
+        );
+
+
+    const piece =
+        draggingPiece;
+
+
+    /*
+        블록의 중앙을
+        손가락 근처에 맞춘다.
+    */
+
+    row -= Math.floor(
+        piece.shape.length / 2
+    );
+
+    col -= Math.floor(
+        piece.shape[0].length / 2
+    );
+
+
+    currentRow = row;
+
+    currentCol = col;
+
+
+    clearPreview();
+
+
+    showPreview(
+        row,
+        col,
+        piece
+    );
+
+}
+
+
+/* ==================================================
+   드래그 종료
+================================================== */
+
+function pointerUp() {
+
+    if (!dragging) {
+        return;
+    }
+
+
+    const piece =
+        draggingPiece;
+
+
+    const row =
+        currentRow;
+
+    const col =
+        currentCol;
+
+
+    const possible =
+        canPlace(
+            piece.shape,
+            row,
+            col
+        );
+
+
+    if (possible) {
+
+        placePiece(
+            piece,
+            row,
+            col
+        );
+
+    }
+
+
+    /*
+        드래그 종료
+    */
+
+    if (dragElement) {
+
+        dragElement.remove();
+
+    }
+
+
+    dragElement = null;
+
+    dragging = false;
+
+    draggingPiece = null;
+
+    currentRow = -1;
+
+    currentCol = -1;
+
+
+    clearPreview();
+
+
+    /*
+        혹시 pointermove가
+        계속 등록되어 있으면 제거
+    */
+
+    document.removeEventListener(
+        "pointermove",
+        pointerMove
+    );
+
+}
+
+
+/* ==================================================
+   배치 가능 여부
+================================================== */
+
+function canPlace(
+    shape,
+    row,
+    col
+) {
+
+    for (
+        let r = 0;
+        r < shape.length;
+        r++
+    ) {
+
+        for (
+            let c = 0;
+            c < shape[r].length;
+            c++
+        ) {
+
+            if (
+                !shape[r][c]
+            ) {
+                continue;
+            }
+
+
+            const nr =
+                row + r;
+
+            const nc =
+                col + c;
+
+
+            /*
+                판 밖
+            */
+
+            if (
+                nr < 0 ||
+                nr >= SIZE ||
+                nc < 0 ||
+                nc >= SIZE
+            ) {
+
+                return false;
+
+            }
+
+
+            /*
+                이미 블록이 있음
+            */
+
+            if (
+                board[nr][nc] !== null
+            ) {
+
+                return false;
+
+            }
+
+        }
+
+    }
+
+
+    return true;
+
+}
+
+
+/* ==================================================
+   미리보기
+================================================== */
+
+function showPreview(
+    row,
+    col,
+    piece
+) {
+
+    const possible =
+        canPlace(
+            piece.shape,
+            row,
+            col
+        );
+
+
+    const cells =
+        document.querySelectorAll(
+            ".cell"
+        );
+
+
+    for (
+        let r = 0;
+        r < piece.shape.length;
+        r++
+    ) {
+
+        for (
+            let c = 0;
+            c < piece.shape[r].length;
+            c++
+        ) {
+
+            if (
+                !piece.shape[r][c]
+            ) {
+                continue;
+            }
+
+
+            const nr =
+                row + r;
+
+            const nc =
+                col + c;
+
+
+            if (
+                nr < 0 ||
+                nr >= SIZE ||
+                nc < 0 ||
+                nc >= SIZE
+            ) {
+
+                continue;
+
+            }
+
+
+            const cell =
+                cells[
+                    nr * SIZE + nc
+                ];
+
+
+            if (possible) {
+
+                cell.classList
+                    .add("preview");
+
+
+                cell.style.background =
+                    piece.color;
+
+            } else {
+
+                cell.classList
+                    .add("bad-preview");
+
+            }
+
+        }
+
+    }
+
+}
+
+
+/* ==================================================
+   미리보기 삭제
+================================================== */
+
+function clearPreview() {
+
+    const cells =
+        document.querySelectorAll(
+            ".cell"
+        );
+
+
+    cells.forEach(
+        cell => {
+
+            cell.classList
+                .remove(
+                    "preview",
+                    "bad-preview"
+                );
+
+
+            cell.style.background =
+                "";
+
+
+            const row =
+                Number(
+                    cell.dataset.row
+                );
+
+
+            const col =
+                Number(
+                    cell.dataset.col
+                );
+
+
+            if (
+                board[row][col] !== null
+            ) {
+
+                cell.style.background =
+                    board[row][col];
+
+            }
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   블록 배치
+================================================== */
+
+function placePiece(
+    piece,
+    row,
+    col
+) {
+
+    if (clearing) {
+        return;
+    }
+
+
+    /*
+        다시 한번 안전하게 검사
+    */
+
+    if (
+        !canPlace(
+            piece.shape,
+            row,
+            col
+        )
+    ) {
+
+        return;
+    }
+
+
+    let blockCount = 0;
+
+
+    /*
+        보드에 넣기
+    */
+
+    for (
+        let r = 0;
+        r < piece.shape.length;
+        r++
+    ) {
+
+        for (
+            let c = 0;
+            c < piece.shape[r].length;
+            c++
+        ) {
+
+            if (
+                piece.shape[r][c]
+            ) {
+
+                board[row + r][col + c] =
+                    piece.color;
+
+                blockCount++;
+
+            }
+
+        }
+
+    }
+
+
+    /*
+        블록 자체 점수
+    */
+
+    score += blockCount;
+
+
+    /*
+        ★ 핵심 ★
+
+        사용한 블록을
+        pieces 배열에서 완전히 제거한다.
+
+        그래서 아래 공간이
+        절대로 빈칸으로 남지 않는다.
+    */
+
+    const pieceIndex =
+        pieces.indexOf(piece);
+
+
+    if (
+        pieceIndex !== -1
+    ) {
+
+        pieces.splice(
+            pieceIndex,
+            1
+        );
+
+    }
+
+
+    renderBoard();
+
+    renderPieces();
+
+    updateScore();
+
+
+    /*
+        줄 검사
+    */
+
+    checkLines();
+
+}
+
+
+/* ==================================================
+   줄 검사
+================================================== */
+
+function checkLines() {
+
+    const rows = [];
+
+    const cols = [];
+
+
+    /*
+        가로
+    */
+
+    for (
+        let r = 0;
+        r < SIZE;
+        r++
+    ) {
+
+        let full = true;
+
+
+        for (
+            let c = 0;
+            c < SIZE;
+            c++
+        ) {
+
+            if (
+                board[r][c] === null
+            ) {
+
+                full = false;
+
+                break;
+
+            }
+
+        }
+
+
+        if (full) {
+
+            rows.push(r);
+
+        }
+
+    }
+
+
+    /*
+        세로
+    */
+
+    for (
+        let c = 0;
+        c < SIZE;
+        c++
+    ) {
+
+        let full = true;
+
+
+        for (
+            let r = 0;
+            r < SIZE;
+            r++
+        ) {
+
+            if (
+                board[r][c] === null
+            ) {
+
+                full = false;
+
+                break;
+
+            }
+
+        }
+
+
+        if (full) {
+
+            cols.push(c);
+
+        }
+
+    }
+
+
+    const lineCount =
+        rows.length +
+        cols.length;
+
+
+    /*
+        ==========================================
+        줄 제거가 없으면 콤보 초기화
+        ==========================================
+    */
+
+    if (
+        lineCount === 0
+    ) {
+
+        combo = 0;
+
+        hideCombo();
+
+        finishTurn();
+
+        return;
+
+    }
+
+
+    /*
+        ==========================================
+        줄 제거 성공
+
+        콤보 +1
+        ==========================================
+    */
+
+    combo++;
+
+
+    /*
+        기본 점수
+    */
+
+    const basicScore =
+        lineCount * 10;
+
+
+    /*
+        여러 줄 제거 보너스
+    */
+
+    const multiBonus =
+        lineCount > 1
+            ? (lineCount - 1) * 20
+            : 0;
+
+
+    /*
+        콤보 보너스
+
+        1콤보 = 5
+        2콤보 = 10
+        3콤보 = 15
+        ...
+    */
+
+    const comboBonus =
+        combo * 5;
+
+
+    const totalBonus =
+        basicScore +
+        multiBonus +
+        comboBonus;
+
+
+    score += totalBonus;
+
+
+    updateScore();
+
+    updateHighScore();
+
+
+    showCombo(
+        lineCount,
+        combo
+    );
+
+
+    showScorePopup(
+        totalBonus
+    );
+
+
+    /*
+        제거 애니메이션 시작
+    */
+
+    clearing = true;
+
+
+    animateRemoving(
+        rows,
+        cols
+    );
+
+
+    /*
+        애니메이션이 끝난 뒤
+        실제로 삭제
+    */
+
+    setTimeout(
+        function() {
+
+            removeLines(
+                rows,
+                cols
+            );
+
+
+            clearing = false;
+
+
+            finishTurn();
+
+        },
+        400
+    );
+
+}
+
+
+/* ==================================================
+   제거 애니메이션
+================================================== */
+
+function animateRemoving(
+    rows,
+    cols
+) {
+
+    const indexes =
+        new Set();
+
+
+    /*
+        가로줄
+    */
+
+    rows.forEach(
+        row => {
+
+            for (
+                let c = 0;
+                c < SIZE;
+                c++
+            ) {
+
+                indexes.add(
+                    row * SIZE + c
+                );
+
+            }
+
+        }
+    );
+
+
+    /*
+        세로줄
+    */
+
+    cols.forEach(
+        col => {
+
+            for (
+                let r = 0;
+                r < SIZE;
+                r++
+            ) {
+
+                indexes.add(
+                    r * SIZE + col
+                );
+
+            }
+
+        }
+    );
+
+
+    const cells =
+        document.querySelectorAll(
+            ".cell"
+        );
+
+
+    indexes.forEach(
+        index => {
+
+            if (
+                cells[index]
+            ) {
+
+                cells[index]
+                    .classList
+                    .add(
+                        "removing"
+                    );
+
+            }
+
+        }
+    );
+
+}
+
+
+/* ==================================================
+   실제 줄 삭제
+================================================== */
+
+function removeLines(
+    rows,
+    cols
+) {
+
+    const indexes =
+        new Set();
+
+
+    rows.forEach(
+        row => {
+
+            for (
+                let c = 0;
+                c < SIZE;
+                c++
+            ) {
+
+                indexes.add(
+                    row * SIZE + c
+                );
+
+            }
+
+        }
+    );
+
+
+    cols.forEach(
+        col => {
+
+            for (
+                let r = 0;
+                r < SIZE;
+                r++
+            ) {
+
+                indexes.add(
+                    r * SIZE + col
+                );
+
+            }
+
+        }
+    );
+
+
+    /*
+        실제 보드에서 삭제
+    */
+
+    indexes.forEach(
+        index => {
+
+            const row =
+                Math.floor(
+                    index / SIZE
+                );
+
+
+            const col =
+                index % SIZE;
+
+
+            board[row][col] =
+                null;
+
+        }
+    );
+
+
+    renderBoard();
+
+}
+
+
+/* ==================================================
+   턴 종료
+================================================== */
+
+function finishTurn() {
+
+    updateScore();
+
+    updateHighScore();
+
+
+    /*
+        블록 3개를 모두 사용했다면
+        새로운 3개 생성
+    */
+
+    if (
+        pieces.length === 0
+    ) {
+
+        createPieces();
+
+    } else {
+
+        /*
+            ★ 중요 ★
+
+            남은 블록만
+            가운데 정렬해서 다시 그림
+        */
+
+        renderPieces();
+
+    }
+
+
+    /*
+        현재 블록으로
+        놓을 수 있는 곳이 없는지 확인
+    */
+
+    if (
+        !hasAnyMove()
+    ) {
+
+        showGameOver();
+
+    }
+
+}
+
+
+/* ==================================================
+   이동 가능 검사
+================================================== */
+
+function hasAnyMove() {
+
+    /*
+        현재 블록들을 검사
+    */
+
+    for (
+        const piece of pieces
+    ) {
+
+        for (
+            let row = 0;
+            row < SIZE;
+            row++
+        ) {
+
+            for (
+                let col = 0;
+                col < SIZE;
+                col++
+            ) {
+
+                if (
+                    canPlace(
+                        piece.shape,
+                        row,
+                        col
+                    )
+                ) {
+
+                    return true;
+
+                }
+
+            }
+
+        }
+
+    }
+
+
+    return false;
+
+}
+
+
+/* ==================================================
+   콤보 표시
+================================================== */
+
+function showCombo(
+    lineCount,
+    comboNumber
+) {
+
+    const element =
+        document.getElementById(
+            "combo"
+        );
+
+
+    if (
+        comboNumber >= 2
+    ) {
+
+        element.textContent =
+            `🔥 ${comboNumber} COMBO!`;
+
+    } else {
+
+        if (
+            lineCount === 1
+        ) {
+
+            element.textContent =
+                "✨ 1줄 제거!";
+
+        } else {
+
+            element.textContent =
+                `✨ ${lineCount}줄 제거!`;
+
+        }
+
+    }
+
+
+    element.classList
+        .remove("show");
+
+
+    /*
+        애니메이션 재실행
+    */
+
+    void element.offsetWidth;
+
+
+    element.classList
+        .add("show");
+
+}
+
+
+/* ==================================================
+   콤보 숨기기
+================================================== */
+
+function hideCombo() {
+
+    document
+        .getElementById("combo")
+        .classList
+        .remove("show");
+
+}
+
+
+/* ==================================================
+   점수 팝업
+================================================== */
+
+function showScorePopup(
+    points
+) {
+
+    const popup =
+        document.createElement(
+            "div"
+        );
+
+
+    popup.className =
+        "score-popup";
+
+
+    popup.textContent =
+        `+${points}`;
+
+
+    popup.style.left =
+        "50%";
+
+
+    popup.style.top =
+        "45%";
+
+
+    document.body.appendChild(
+        popup
+    );
+
+
+    setTimeout(
+        () => {
+
+            popup.remove();
+
+        },
+        800
+    );
+
+}
+
+
+/* ==================================================
+   점수 표시
+================================================== */
+
+function updateScore() {
+
+    document
+        .getElementById("score")
+        .textContent =
+        score;
+
+}
+
+
+/* ==================================================
+   최고 점수 저장
+================================================== */
+
+function updateHighScore() {
+
+    if (
+        score > highScore
+    ) {
+
+        highScore = score;
+
+
+        /*
+            브라우저에 저장
+
+            게임을 껐다 켜도
+            최고 점수가 남는다.
+        */
+
+        localStorage.setItem(
+            "blockBlastHighScore",
+            highScore
+        );
+
+    }
+
+
+    document
+        .getElementById("highScore")
+        .textContent =
+        highScore;
+
+}
+
+
+/* ==================================================
+   게임 오버
+================================================== */
+
+function showGameOver() {
+
+    if (clearing) {
+        return;
+    }
+
+
+    document
+        .getElementById("finalScore")
+        .textContent =
+        score;
+
+
+    document
+        .getElementById("finalHighScore")
+        .textContent =
+        highScore;
+
+
+    document
+        .getElementById("gameOver")
+        .classList
+        .add("show");
+
+}
+
+
+/* ==================================================
+   다시 시작
+================================================== */
+
+function restartGame() {
+
+    startGame();
+
+}
+
+
+/* ==================================================
+   시작
+================================================== */
+
+startGame();
+
+</script>
+
+</body>
+</html>
