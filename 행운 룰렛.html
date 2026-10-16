@@ -1,0 +1,619 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>행운 룰렛</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 왼쪽에 큰 룰렛과 돌리기 버튼, 오른쪽에 이름 입력과 목록. 좁은 화면에서는 한 열로 쌓임. */
+:root {
+  --bg: #EBEEF6;
+  --surface: #FFFFFF;
+  --surface-2: #F3F5FB;
+  --fg: #141A33;
+  --muted: #5A6286;
+  --line: #D3D9EA;
+  --accent: #E0432F;
+  --accent-fg: #FFFFFF;
+  --accent-soft: #FCE4DF;
+  --danger: #B3261E;
+  --seg0: #D2402F;
+  --seg1: #1F6FB8;
+  --seg2: #1F8F62;
+  --seg3: #E0A21A;
+  --seg4: #7A4FC2;
+  --seg5: #0E8FA0;
+  --seg6: #D6578F;
+  --seg7: #5B6B7A;
+  --rim: #141A33;
+  --font-display: 'Black Han Sans', 'Noto Sans KR', system-ui, sans-serif;
+  --font-body: 'Noto Sans KR', system-ui, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1322;
+    --surface: #181E36;
+    --surface-2: #1F2644;
+    --fg: #ECEFFA;
+    --muted: #9AA3C7;
+    --line: #2C355A;
+    --accent: #FF6A55;
+    --accent-fg: #1A0B08;
+    --accent-soft: #3A1E1E;
+    --danger: #FF8A80;
+    --seg0: #E2503F;
+    --seg1: #3C8BD9;
+    --seg2: #2BA574;
+    --seg3: #E8B130;
+    --seg4: #8E66D6;
+    --seg5: #1FA3B5;
+    --seg6: #E56BA0;
+    --seg7: #70808F;
+    --rim: #ECEFFA;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1322;
+  --surface: #181E36;
+  --surface-2: #1F2644;
+  --fg: #ECEFFA;
+  --muted: #9AA3C7;
+  --line: #2C355A;
+  --accent: #FF6A55;
+  --accent-fg: #1A0B08;
+  --accent-soft: #3A1E1E;
+  --danger: #FF8A80;
+  --seg0: #E2503F;
+  --seg1: #3C8BD9;
+  --seg2: #2BA574;
+  --seg3: #E8B130;
+  --seg4: #8E66D6;
+  --seg5: #1FA3B5;
+  --seg6: #E56BA0;
+  --seg7: #70808F;
+  --rim: #ECEFFA;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  padding-block: 28px 40px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.app { max-width: 1040px; margin: 0 auto; display: grid; gap: 24px; }
+header h1 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: clamp(2rem, 6vw, 3rem);
+  line-height: 1.1;
+  margin: 0;
+  letter-spacing: 0.01em;
+  text-wrap: balance;
+}
+header p { margin: 6px 0 0; color: var(--muted); font-size: 0.95rem; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 800px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.stage { display: grid; gap: 18px; justify-items: center; }
+.wheel-wrap { position: relative; width: min(100%, 480px); aspect-ratio: 1 / 1; }
+.wheel-wrap canvas { width: 100%; height: 100%; display: block; }
+.pointer {
+  position: absolute; left: 50%; top: -4px; transform: translateX(-50%);
+  width: 0; height: 0;
+  border-left: 15px solid transparent;
+  border-right: 15px solid transparent;
+  border-top: 32px solid var(--accent);
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.35));
+  z-index: 2;
+}
+.spin {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  letter-spacing: 0.04em;
+  background: var(--accent);
+  color: var(--accent-fg);
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 52px;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(0,0,0,0.22);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, opacity 0.2s;
+}
+.spin:hover:not(:disabled) { transform: translateY(1px); box-shadow: 0 3px 0 rgba(0,0,0,0.22); }
+.spin:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 0 0 rgba(0,0,0,0.22); }
+.spin:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.result {
+  width: min(100%, 480px);
+  min-height: 108px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 18px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+.result .label { font-size: 0.78rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.result .winner {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 7vw, 2.8rem);
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+  max-width: 100%;
+}
+.result.has-winner { border-color: var(--accent); background: var(--accent-soft); }
+.result.has-winner .winner { animation: pop 0.5s cubic-bezier(.2,1.4,.4,1); }
+.result .hint { color: var(--muted); font-size: 0.92rem; }
+.result .again { margin-top: 6px; }
+@keyframes pop { from { transform: scale(0.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 16px; min-width: 0; }
+.panel h2 { font-size: 1rem; margin: 0; font-weight: 700; }
+form.add { display: flex; gap: 8px; }
+form.add input {
+  flex: 1; min-width: 0;
+  font: inherit;
+  color: var(--fg);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+form.add input::placeholder { color: var(--muted); }
+button { font: inherit; }
+.btn {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg);
+  border-radius: 10px;
+  padding: 9px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn.primary { background: var(--fg); color: var(--bg); border-color: var(--fg); font-weight: 700; }
+.btn.danger { color: var(--danger); border-color: var(--danger); background: transparent; }
+.btn.danger.solid { background: var(--danger); color: var(--bg); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.meta { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.count { color: var(--muted); font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.clear-box { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.clear-box .ask { font-size: 0.88rem; color: var(--danger); }
+
+ul.names { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 360px; overflow-y: auto; }
+ul.names li {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 7px 8px 7px 12px;
+}
+ul.names li.win { border-color: var(--accent); background: var(--accent-soft); }
+.dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.del {
+  flex: none;
+  width: 34px; height: 34px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.del:hover:not(:disabled) { color: var(--danger); background: var(--surface); }
+.del:disabled { opacity: 0.35; cursor: not-allowed; }
+.empty { color: var(--muted); font-size: 0.92rem; padding: 14px 4px; text-align: center; }
+.note { font-size: 0.82rem; color: var(--muted); background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.tip { font-size: 0.82rem; color: var(--muted); margin: 0; }
+@media (prefers-reduced-motion: reduce) { .result.has-winner .winner { animation: none; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>행운 룰렛</h1>
+    <p>이름을 넣고 돌리면 걸린 항목이 아래에 표시돼요.</p>
+  </header>
+
+  <div class="layout">
+    <section class="stage" aria-label="룰렛">
+      <div class="wheel-wrap">
+        <div class="pointer" aria-hidden="true"></div>
+        <canvas id="wheel" role="img" aria-label="이름이 나뉜 룰렛 판"></canvas>
+      </div>
+      <button id="spin" class="spin" type="button">돌리기</button>
+      <div id="result" class="result" aria-live="polite">
+        <div class="label">걸린 항목</div>
+        <div class="hint">룰렛을 돌려 보세요.</div>
+      </div>
+    </section>
+
+    <section class="panel" aria-label="이름 관리">
+      <h2>이름 추가</h2>
+      <form id="addForm" class="add" autocomplete="off">
+        <input id="nameInput" type="text" maxlength="30" placeholder="이름을 입력하세요" aria-label="추가할 이름">
+        <button class="btn primary" type="submit" id="addBtn">추가</button>
+      </form>
+      <p class="tip">쉼표(,)로 구분하면 한 번에 여러 개를 넣을 수 있어요.</p>
+
+      <div class="meta">
+        <span class="count" id="count">0개</span>
+        <div class="clear-box" id="clearBox">
+          <button class="btn danger" type="button" id="clearBtn">전체 삭제</button>
+        </div>
+      </div>
+
+      <div id="exampleNote" class="note" hidden>예시 이름이 들어 있어요. 삭제하거나 전체 삭제로 비우고 직접 넣어 보세요.</div>
+      <ul class="names" id="list"></ul>
+    </section>
+  </div>
+</div>
+
+<script>
+(function () {
+  var STORE = 'roulette-items-v1';
+  var EXAMPLES = ['민수', '지은', '현우', '서연', '도윤'];
+  var items = [];
+  var nextId = 1;
+  var rotation = 0;
+  var spinning = false;
+  var winnerId = null;
+  var isExample = false;
+  var askingClear = false;
+
+  var canvas = document.getElementById('wheel');
+  var ctx = canvas.getContext('2d');
+  var listEl = document.getElementById('list');
+  var countEl = document.getElementById('count');
+  var resultEl = document.getElementById('result');
+  var spinBtn = document.getElementById('spin');
+  var addForm = document.getElementById('addForm');
+  var nameInput = document.getElementById('nameInput');
+  var addBtn = document.getElementById('addBtn');
+  var clearBox = document.getElementById('clearBox');
+  var exampleNote = document.getElementById('exampleNote');
+
+  var TAU = Math.PI * 2;
+
+  function save() {
+    try { localStorage.setItem(STORE, JSON.stringify(items.map(function (it) { return it.name; }))); } catch (e) {}
+  }
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORE);
+      if (raw !== null) {
+        var arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return arr.map(String);
+      }
+    } catch (e) {}
+    return null;
+  }
+  function addName(name) { items.push({ id: nextId++, name: name }); }
+
+  var saved = load();
+  if (saved === null) { EXAMPLES.forEach(addName); isExample = true; }
+  else { saved.forEach(addName); }
+
+  function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+  function colorIndex(i, n) {
+    if (n > 1 && i === n - 1 && i % 8 === 0) return 4;
+    return i % 8;
+  }
+  function segColor(i, n) { return cssVar('--seg' + colorIndex(i, n)); }
+  function textOn(hex) {
+    var h = hex.replace('#', '');
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    var lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.62 ? '#141A33' : '#FFFFFF';
+  }
+
+  function resize() {
+    var size = canvas.clientWidth;
+    if (!size) return;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(size * dpr);
+    canvas.height = Math.round(size * dpr);
+    draw();
+  }
+
+  function draw() {
+    var size = canvas.clientWidth;
+    if (!size) return;
+    var dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, size, size);
+    var cx = size / 2, cy = size / 2;
+    var rim = Math.max(8, size * 0.025);
+    var R = size / 2 - rim / 2 - 6;
+    var n = items.length;
+    var fg = cssVar('--fg');
+    var surface = cssVar('--surface');
+    var rimColor = cssVar('--rim');
+
+    if (n === 0) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, R, 0, TAU);
+      ctx.fillStyle = cssVar('--surface-2');
+      ctx.fill();
+      ctx.lineWidth = rim;
+      ctx.strokeStyle = rimColor;
+      ctx.stroke();
+      ctx.fillStyle = cssVar('--muted');
+      ctx.font = '500 ' + Math.round(size * 0.04) + 'px ' + cssVar('--font-body');
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('이름을 추가해 주세요', cx, cy);
+      return;
+    }
+
+    var seg = TAU / n;
+    for (var i = 0; i < n; i++) {
+      var a0 = -Math.PI / 2 + rotation + i * seg;
+      var col = segColor(i, n);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, R, a0, a0 + seg);
+      ctx.closePath();
+      ctx.fillStyle = col;
+      ctx.fill();
+      if (n > 1) {
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = surface;
+        ctx.stroke();
+      }
+    }
+
+    // labels
+    var fontSize = Math.max(11, Math.min(size * 0.055, R * 0.9 * seg * 0.55, 26));
+    if (n === 1) fontSize = Math.min(size * 0.07, 30);
+    ctx.font = '700 ' + Math.round(fontSize) + 'px ' + cssVar('--font-body');
+    ctx.textBaseline = 'middle';
+    for (var j = 0; j < n; j++) {
+      var mid = -Math.PI / 2 + rotation + (j + 0.5) * seg;
+      var c = segColor(j, n);
+      ctx.save();
+      ctx.translate(cx, cy);
+      if (n === 1) {
+        ctx.textAlign = 'center';
+        ctx.fillStyle = textOn(c);
+        ctx.fillText(fit(items[j].name, R * 0.7), 0, R * 0.45);
+      } else {
+        ctx.rotate(mid);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = textOn(c);
+        ctx.fillText(fit(items[j].name, R * 0.68), R - 16, 0);
+      }
+      ctx.restore();
+    }
+
+    // rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, TAU);
+    ctx.lineWidth = rim;
+    ctx.strokeStyle = rimColor;
+    ctx.stroke();
+
+    // hub
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.055, 0, TAU);
+    ctx.fillStyle = surface;
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = rimColor;
+    ctx.stroke();
+  }
+
+  function fit(text, maxW) {
+    if (ctx.measureText(text).width <= maxW) return text;
+    var t = text;
+    while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
+    return t + '…';
+  }
+
+  function renderList() {
+    listEl.innerHTML = '';
+    var n = items.length;
+    countEl.textContent = n + '개';
+    if (n === 0) {
+      var li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '아직 이름이 없어요. 위에서 추가해 주세요.';
+      listEl.appendChild(li);
+    }
+    items.forEach(function (it, i) {
+      var li = document.createElement('li');
+      if (it.id === winnerId) li.className = 'win';
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.style.background = 'var(--seg' + colorIndex(i, n) + ')';
+      var nm = document.createElement('span');
+      nm.className = 'nm';
+      nm.textContent = it.name;
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'del';
+      del.textContent = '×';
+      del.setAttribute('aria-label', it.name + ' 삭제');
+      del.disabled = spinning;
+      del.addEventListener('click', function () { removeItem(it.id); });
+      li.appendChild(dot); li.appendChild(nm); li.appendChild(del);
+      listEl.appendChild(li);
+    });
+    exampleNote.hidden = !isExample || n === 0;
+    spinBtn.disabled = spinning || n < 2;
+    spinBtn.textContent = spinning ? '도는 중…' : '돌리기';
+    addBtn.disabled = spinning;
+    nameInput.disabled = spinning;
+    renderClear();
+  }
+
+  function renderClear() {
+    clearBox.innerHTML = '';
+    if (askingClear && items.length > 0 && !spinning) {
+      var ask = document.createElement('span');
+      ask.className = 'ask';
+      ask.textContent = '모두 지울까요?';
+      var yes = document.createElement('button');
+      yes.type = 'button'; yes.className = 'btn danger solid'; yes.textContent = '지우기';
+      yes.addEventListener('click', clearAll);
+      var no = document.createElement('button');
+      no.type = 'button'; no.className = 'btn'; no.textContent = '취소';
+      no.addEventListener('click', function () { askingClear = false; renderClear(); });
+      clearBox.appendChild(ask); clearBox.appendChild(yes); clearBox.appendChild(no);
+    } else {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'btn danger'; b.textContent = '전체 삭제';
+      b.disabled = spinning || items.length === 0;
+      b.addEventListener('click', function () { askingClear = true; renderClear(); });
+      clearBox.appendChild(b);
+    }
+  }
+
+  function renderResult(winner) {
+    resultEl.innerHTML = '';
+    var label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = '걸린 항목';
+    resultEl.appendChild(label);
+    if (!winner) {
+      resultEl.classList.remove('has-winner');
+      var h = document.createElement('div');
+      h.className = 'hint';
+      h.textContent = items.length < 2 ? '이름을 2개 이상 넣으면 돌릴 수 있어요.' : '룰렛을 돌려 보세요.';
+      resultEl.appendChild(h);
+      return;
+    }
+    resultEl.classList.add('has-winner');
+    var w = document.createElement('div');
+    w.className = 'winner';
+    w.textContent = winner.name;
+    resultEl.appendChild(w);
+    var again = document.createElement('button');
+    again.type = 'button';
+    again.className = 'btn again';
+    again.textContent = '이 항목 삭제하고 다시 돌리기';
+    again.addEventListener('click', function () { removeItem(winner.id); });
+    resultEl.appendChild(again);
+  }
+
+  function refresh() {
+    var w = items.filter(function (it) { return it.id === winnerId; })[0] || null;
+    if (!w) winnerId = null;
+    renderList();
+    renderResult(w);
+    draw();
+  }
+
+  function removeItem(id) {
+    if (spinning) return;
+    items = items.filter(function (it) { return it.id !== id; });
+    if (winnerId === id) winnerId = null;
+    isExample = false;
+    askingClear = false;
+    save();
+    refresh();
+  }
+
+  function clearAll() {
+    if (spinning) return;
+    items = [];
+    winnerId = null;
+    isExample = false;
+    askingClear = false;
+    save();
+    refresh();
+  }
+
+  addForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (spinning) return;
+    var parts = nameInput.value.split(/[,\n，]/).map(function (s) { return s.trim(); }).filter(Boolean);
+    if (!parts.length) { nameInput.focus(); return; }
+    if (isExample) { items = []; isExample = false; }
+    parts.forEach(function (p) { if (items.length < 60) addName(p.slice(0, 30)); });
+    winnerId = null;
+    nameInput.value = '';
+    askingClear = false;
+    save();
+    refresh();
+    nameInput.focus();
+  });
+
+  function ease(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function spin() {
+    var n = items.length;
+    if (spinning || n < 2) return;
+    spinning = true;
+    askingClear = false;
+    winnerId = null;
+    renderResult(null);
+    resultEl.querySelector('.hint').textContent = '돌아가는 중…';
+    renderList();
+
+    var seg = TAU / n;
+    var pick = Math.floor(Math.random() * n);
+    var jitter = (Math.random() - 0.5) * seg * 0.7;
+    var targetMod = ((-(pick + 0.5) * seg + jitter) % TAU + TAU) % TAU;
+    var curMod = ((rotation % TAU) + TAU) % TAU;
+    var delta = ((targetMod - curMod) % TAU + TAU) % TAU;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var turns = reduce ? 1 : 5 + Math.floor(Math.random() * 3);
+    var total = turns * TAU + delta;
+    var start = rotation;
+    var dur = reduce ? 900 : 4800 + Math.random() * 1200;
+    var t0 = null;
+
+    function frame(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      rotation = start + total * ease(p);
+      draw();
+      if (p < 1) { requestAnimationFrame(frame); }
+      else { finish(); }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function finish() {
+    var n = items.length;
+    var seg = TAU / n;
+    var ang = ((-rotation % TAU) + TAU) % TAU;
+    var idx = Math.min(n - 1, Math.floor(ang / seg));
+    winnerId = items[idx].id;
+    spinning = false;
+    rotation = ((rotation % TAU) + TAU) % TAU;
+    refresh();
+  }
+
+  spinBtn.addEventListener('click', spin);
+  window.addEventListener('resize', resize);
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas);
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    var redraw = function () { draw(); };
+    if (mq.addEventListener) mq.addEventListener('change', redraw);
+  }
+  new MutationObserver(function () { draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+
+  refresh();
+  resize();
+})();
+</script>
+
+</body></html>
