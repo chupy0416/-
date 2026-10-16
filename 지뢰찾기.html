@@ -1,0 +1,333 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>지뢰찾기</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=IBM+Plex+Sans+KR:wght@400;500;600&display=swap">
+<style>
+/* Layout: 탐사 지도 느낌의 단일 보드. 상단 계기판(지뢰/표정/시간), 중앙 격자, 하단 난이도와 기록. */
+:root {
+  --bg: #e9edf0;
+  --panel: #f7f9fa;
+  --line: #c3ccd3;
+  --ink: #1b2a33;
+  --ink-soft: #5b6b75;
+  --cell: #cfd8de;
+  --cell-hi: #e3e9ed;
+  --cell-open: #f4f7f8;
+  --accent: #0f7b8a;
+  --accent-ink: #ffffff;
+  --danger: #d6452b;
+  --flag: #d6452b;
+  --n1: #1d63c9; --n2: #2a7d3f; --n3: #c93a2a; --n4: #4b3aa6;
+  --n5: #9a4a14; --n6: #0f7b8a; --n7: #1b2a33; --n8: #6b7780;
+  --font-display: "Chakra Petch", "IBM Plex Sans KR", sans-serif;
+  --font-body: "IBM Plex Sans KR", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12181c; --panel: #1a2228; --line: #2c3841; --ink: #e6edf1; --ink-soft: #8d9ca6;
+    --cell: #2b3841; --cell-hi: #3a4a55; --cell-open: #161d22;
+    --accent: #3cc3d4; --accent-ink: #0b1418; --danger: #ff6b4d; --flag: #ff6b4d;
+    --n1: #6ea8ff; --n2: #5fcf7b; --n3: #ff7b69; --n4: #a799ff;
+    --n5: #e0955a; --n6: #3cc3d4; --n7: #e6edf1; --n8: #9aa8b2;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12181c; --panel: #1a2228; --line: #2c3841; --ink: #e6edf1; --ink-soft: #8d9ca6;
+  --cell: #2b3841; --cell-hi: #3a4a55; --cell-open: #161d22;
+  --accent: #3cc3d4; --accent-ink: #0b1418; --danger: #ff6b4d; --flag: #ff6b4d;
+  --n1: #6ea8ff; --n2: #5fcf7b; --n3: #ff7b69; --n4: #a799ff;
+  --n5: #e0955a; --n6: #3cc3d4; --n7: #e6edf1; --n8: #9aa8b2;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body);
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-tap-highlight-color: transparent;
+}
+.wrap { max-width: 980px; margin: 0 auto; display: grid; gap: 16px; justify-items: center; }
+h1 { font-family: var(--font-display); font-size: 1.5rem; letter-spacing: .04em; margin: 0; text-wrap: balance; }
+.sub { color: var(--ink-soft); font-size: .85rem; margin: 2px 0 0; text-align: center; }
+.head { text-align: center; }
+
+.diff { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.diff button, .tool {
+  font: 500 .85rem var(--font-body); color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; cursor: pointer; min-height: 40px;
+}
+.diff button[aria-pressed="true"], .tool[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.board-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px; max-width: 100%; display: grid; gap: 12px; }
+.hud { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
+.lcd {
+  font-family: var(--font-display); font-weight: 700; font-size: 1.5rem; font-variant-numeric: tabular-nums;
+  background: var(--cell-open); border: 1px solid var(--line); border-radius: 6px; padding: 2px 10px; min-width: 4.2ch; text-align: center; color: var(--ink);
+}
+.lcd.r { justify-self: end; } .lcd.l { justify-self: start; }
+.face { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--cell); cursor: pointer; display: grid; place-items: center; }
+.face svg { width: 28px; height: 28px; }
+.scroller { overflow-x: auto; max-width: 100%; padding: 2px; }
+.grid { display: grid; gap: 2px; width: max-content; margin: 0 auto; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+.c {
+  width: var(--cs); height: var(--cs); padding: 0; border: 0; border-radius: 3px; background: var(--cell);
+  box-shadow: inset 0 -2px 0 rgba(0,0,0,.14), inset 0 2px 0 var(--cell-hi);
+  font: 700 calc(var(--cs) * .56)/1 var(--font-display); color: var(--ink); cursor: pointer; display: grid; place-items: center;
+  -webkit-touch-callout: none;
+}
+.c.open { background: var(--cell-open); box-shadow: none; cursor: default; }
+.c.boom { background: var(--danger); }
+.c.wrong { background: var(--cell-open); }
+.c svg { width: 62%; height: 62%; display: block; }
+.c.x1{color:var(--n1)} .c.x2{color:var(--n2)} .c.x3{color:var(--n3)} .c.x4{color:var(--n4)}
+.c.x5{color:var(--n5)} .c.x6{color:var(--n6)} .c.x7{color:var(--n7)} .c.x8{color:var(--n8)}
+.c:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; position: relative; z-index: 1; }
+
+.tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+.status { min-height: 1.5em; font-weight: 600; text-align: center; }
+.status.win { color: var(--n2); } .status.lose { color: var(--danger); }
+.best { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; color: var(--ink-soft); font-size: .85rem; }
+.best b { font-family: var(--font-display); color: var(--ink); font-variant-numeric: tabular-nums; }
+.help { color: var(--ink-soft); font-size: .8rem; text-align: center; max-width: 52ch; line-height: 1.6; margin: 0; }
+@media (prefers-reduced-motion: no-preference) { .c { transition: background .08s; } }
+</style>
+
+<div class="wrap">
+  <div class="head">
+    <h1>지뢰찾기</h1>
+    <p class="sub">숫자는 주변 8칸에 있는 지뢰의 수예요.</p>
+  </div>
+
+  <div class="diff" id="diff" role="group" aria-label="난이도">
+    <button type="button" data-d="easy" aria-pressed="true">초급 9×9</button>
+    <button type="button" data-d="mid" aria-pressed="false">중급 16×16</button>
+    <button type="button" data-d="hard" aria-pressed="false">고급 30×16</button>
+  </div>
+
+  <div class="board-card" id="card">
+    <div class="hud">
+      <div class="lcd l" id="mines" aria-label="남은 지뢰">010</div>
+      <button type="button" class="face" id="face" aria-label="새 게임"></button>
+      <div class="lcd r" id="time" aria-label="시간">000</div>
+    </div>
+    <div class="scroller" id="scroller"><div class="grid" id="grid" role="grid" aria-label="지뢰찾기 판"></div></div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <div class="tools">
+    <button type="button" class="tool" id="flagMode" aria-pressed="false">깃발 모드</button>
+    <button type="button" class="tool" id="restart">다시 시작</button>
+  </div>
+
+  <div class="best" id="best"></div>
+  <p class="help">PC는 왼쪽 클릭으로 열고 오른쪽 클릭으로 깃발을 꽂아요. 휴대폰은 칸을 길게 누르거나 깃발 모드를 켜세요. 숫자와 같은 수의 깃발을 꽂은 뒤 그 숫자를 누르면 주변 칸이 한 번에 열려요.</p>
+</div>
+
+<script>
+(function () {
+  var LEVELS = {
+    easy: { r: 9, c: 9, m: 10, name: "초급" },
+    mid:  { r: 16, c: 16, m: 40, name: "중급" },
+    hard: { r: 16, c: 30, m: 99, name: "고급" }
+  };
+  var FLAG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M4 2.5l8 3-8 3z" fill="var(--flag)"/><path d="M2 14h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>';
+  var MINE = '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.2" fill="currentColor"/><path d="M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M3.4 3.4l2 2M10.6 10.6l2 2M12.6 3.4l-2 2M5.4 10.6l-2 2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><circle cx="6.6" cy="6.6" r="1.1" fill="var(--cell-open)"/></svg>';
+  var WRONG = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3l10 10M13 3L3 13" stroke="var(--danger)" stroke-width="2" stroke-linecap="round"/></svg>';
+  var FACES = {
+    play: '<svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="10" cy="11.5" r="1.6" fill="currentColor"/><circle cx="18" cy="11.5" r="1.6" fill="currentColor"/><path d="M9 17c1.2 2 3 3 5 3s3.8-1 5-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    win: '<svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" stroke-width="2"/><rect x="6.5" y="9.5" width="6" height="4" rx="1.5" fill="currentColor"/><rect x="15.5" y="9.5" width="6" height="4" rx="1.5" fill="currentColor"/><path d="M12.5 11h3" stroke="currentColor" stroke-width="1.6"/><path d="M9 17c1.2 2 3 3 5 3s3.8-1 5-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    lose: '<svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7.5 9.5l4 4M11.5 9.5l-4 4M16.5 9.5l4 4M20.5 9.5l-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M9 21c1.2-2 3-3 5-3s3.8 1 5 3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+  };
+
+  var $ = function (id) { return document.getElementById(id); };
+  var gridEl = $("grid"), faceEl = $("face"), minesEl = $("mines"), timeEl = $("time"), statusEl = $("status");
+  var level = "easy", R, C, M, cells, btns, started, over, flags, opened, seconds, timer, flagMode = false, pressTimer = null, longFired = false;
+
+  function pad(n) { n = Math.max(-99, Math.min(999, n)); return n < 0 ? "-" + String(-n).padStart(2, "0") : String(n).padStart(3, "0"); }
+  function neighbors(i) {
+    var r = (i / C) | 0, c = i % C, out = [];
+    for (var dr = -1; dr <= 1; dr++) for (var dc = -1; dc <= 1; dc++) {
+      if (!dr && !dc) continue;
+      var nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < R && nc >= 0 && nc < C) out.push(nr * C + nc);
+    }
+    return out;
+  }
+  function readBest() { try { return JSON.parse(localStorage.getItem("minesweeper-best") || "{}"); } catch (e) { return {}; } }
+  function writeBest(b) { try { localStorage.setItem("minesweeper-best", JSON.stringify(b)); } catch (e) {} }
+  function showBest() {
+    var b = readBest(), html = "";
+    Object.keys(LEVELS).forEach(function (k) {
+      html += "<span>" + LEVELS[k].name + " 최고 기록 <b>" + (b[k] != null ? b[k] + "초" : "-") + "</b></span>";
+    });
+    $("best").innerHTML = html;
+  }
+  function sizeCells() {
+    var avail = Math.min(document.documentElement.clientWidth, 980) - 32 - 24 - 8;
+    var cs = Math.floor((avail - (C - 1) * 2) / C);
+    cs = Math.max(22, Math.min(38, cs));
+    gridEl.style.setProperty("--cs", cs + "px");
+  }
+  function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+  function setFace(k) { faceEl.innerHTML = FACES[k]; }
+
+  function newGame() {
+    stopTimer();
+    var L = LEVELS[level]; R = L.r; C = L.c; M = L.m;
+    cells = []; btns = [];
+    started = false; over = false; flags = 0; opened = 0; seconds = 0;
+    for (var i = 0; i < R * C; i++) cells.push({ m: false, o: false, f: false, n: 0 });
+    gridEl.style.gridTemplateColumns = "repeat(" + C + ", var(--cs))";
+    gridEl.setAttribute("aria-rowcount", R); gridEl.setAttribute("aria-colcount", C);
+    gridEl.innerHTML = "";
+    for (var j = 0; j < R * C; j++) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "c"; b.dataset.i = j;
+      b.setAttribute("aria-label", "닫힌 칸 " + (((j / C) | 0) + 1) + "행 " + (j % C + 1) + "열");
+      gridEl.appendChild(b); btns.push(b);
+    }
+    sizeCells();
+    minesEl.textContent = pad(M); timeEl.textContent = "000";
+    statusEl.textContent = ""; statusEl.className = "status";
+    setFace("play"); showBest();
+  }
+
+  function placeMines(safe) {
+    var banned = {}; banned[safe] = 1;
+    neighbors(safe).forEach(function (n) { banned[n] = 1; });
+    var pool = [];
+    for (var i = 0; i < R * C; i++) if (!banned[i]) pool.push(i);
+    for (var k = pool.length - 1; k > 0; k--) { var s = (Math.random() * (k + 1)) | 0, t = pool[k]; pool[k] = pool[s]; pool[s] = t; }
+    pool.slice(0, M).forEach(function (i) { cells[i].m = true; });
+    for (var x = 0; x < R * C; x++) cells[x].n = neighbors(x).filter(function (n) { return cells[n].m; }).length;
+  }
+
+  function paint(i) {
+    var cell = cells[i], b = btns[i];
+    b.className = "c"; b.innerHTML = "";
+    var pos = (((i / C) | 0) + 1) + "행 " + (i % C + 1) + "열";
+    if (cell.o) {
+      b.classList.add("open");
+      if (cell.m) { b.classList.add("boom"); b.innerHTML = MINE; b.setAttribute("aria-label", "터진 지뢰 " + pos); }
+      else if (cell.n) { b.classList.add("x" + cell.n); b.textContent = cell.n; b.setAttribute("aria-label", "숫자 " + cell.n + " " + pos); }
+      else b.setAttribute("aria-label", "빈 칸 " + pos);
+    } else if (cell.f) { b.innerHTML = FLAG; b.setAttribute("aria-label", "깃발 " + pos); }
+    else b.setAttribute("aria-label", "닫힌 칸 " + pos);
+  }
+
+  function reveal(start) {
+    var stack = [start];
+    while (stack.length) {
+      var i = stack.pop(), c = cells[i];
+      if (c.o || c.f) continue;
+      c.o = true; opened++; paint(i);
+      if (c.m) return true;
+      if (c.n === 0) neighbors(i).forEach(function (n) { if (!cells[n].o) stack.push(n); });
+    }
+    return false;
+  }
+
+  function begin(i) {
+    placeMines(i); started = true;
+    timer = setInterval(function () { seconds++; timeEl.textContent = pad(seconds); }, 1000);
+  }
+
+  function lose(hit) {
+    over = true; stopTimer(); setFace("lose");
+    cells.forEach(function (c, i) {
+      if (c.m && !c.f && !c.o) { c.o = true; paint(i); btns[i].classList.remove("boom"); }
+      else if (!c.m && c.f) { btns[i].className = "c wrong"; btns[i].innerHTML = WRONG; btns[i].setAttribute("aria-label", "잘못 꽂은 깃발"); }
+    });
+    cells[hit].o = true; paint(hit);
+    statusEl.textContent = "지뢰를 밟았어요. 다시 도전해 보세요."; statusEl.className = "status lose";
+  }
+
+  function win() {
+    over = true; stopTimer(); setFace("win");
+    cells.forEach(function (c, i) { if (c.m && !c.f) { c.f = true; paint(i); } });
+    flags = M; minesEl.textContent = pad(0);
+    var b = readBest(), msg = "성공! " + seconds + "초 만에 모든 지뢰를 찾았어요.";
+    if (b[level] == null || seconds < b[level]) { b[level] = seconds; writeBest(b); msg += " 최고 기록이에요."; }
+    statusEl.textContent = msg; statusEl.className = "status win"; showBest();
+  }
+
+  function checkWin() { if (!over && opened === R * C - M) win(); }
+
+  function openCell(i) {
+    if (over) return;
+    var c = cells[i];
+    if (c.f) return;
+    if (c.o) { chord(i); return; }
+    if (!started) begin(i);
+    if (c.m) { lose(i); return; }
+    reveal(i); checkWin();
+  }
+
+  function chord(i) {
+    var c = cells[i];
+    if (!c.o || c.n === 0) return;
+    var nb = neighbors(i), fl = nb.filter(function (n) { return cells[n].f; }).length;
+    if (fl !== c.n) return;
+    var hit = -1;
+    nb.forEach(function (n) {
+      if (cells[n].f || cells[n].o) return;
+      if (cells[n].m) { hit = n; return; }
+      reveal(n);
+    });
+    if (hit >= 0) lose(hit); else checkWin();
+  }
+
+  function toggleFlag(i) {
+    if (over) return;
+    var c = cells[i];
+    if (c.o) { chord(i); return; }
+    c.f = !c.f; flags += c.f ? 1 : -1;
+    paint(i); minesEl.textContent = pad(M - flags);
+  }
+
+  function idxOf(e) { var t = e.target.closest(".c"); return t ? +t.dataset.i : -1; }
+
+  gridEl.addEventListener("click", function (e) {
+    var i = idxOf(e); if (i < 0) return;
+    if (longFired) { longFired = false; return; }
+    if (flagMode) toggleFlag(i); else openCell(i);
+  });
+  gridEl.addEventListener("contextmenu", function (e) {
+    e.preventDefault();
+    var i = idxOf(e); if (i < 0) return;
+    if (longFired) { longFired = false; return; }
+    toggleFlag(i);
+  });
+  gridEl.addEventListener("pointerdown", function (e) {
+    if (e.pointerType === "mouse") return;
+    var i = idxOf(e); if (i < 0) return;
+    longFired = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(function () { longFired = true; toggleFlag(i); if (navigator.vibrate) { try { navigator.vibrate(15); } catch (x) {} } }, 380);
+  });
+  ["pointerup", "pointercancel", "pointerleave", "pointermove"].forEach(function (ev) {
+    gridEl.addEventListener(ev, function () { clearTimeout(pressTimer); });
+  });
+
+  $("diff").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return;
+    level = b.dataset.d;
+    Array.prototype.forEach.call($("diff").children, function (x) { x.setAttribute("aria-pressed", x === b ? "true" : "false"); });
+    newGame();
+  });
+  $("flagMode").addEventListener("click", function () {
+    flagMode = !flagMode; this.setAttribute("aria-pressed", flagMode ? "true" : "false");
+  });
+  $("restart").addEventListener("click", newGame);
+  faceEl.addEventListener("click", newGame);
+  window.addEventListener("resize", sizeCells);
+
+  newGame();
+})();
+</script>
+
+</body></html>
