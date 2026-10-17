@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>종이비행기</title>
+<style>
+:root{
+  --bg:#e6ecf1;--ink:#1d2933;--sub:#5d6f7d;--sky:#f1f6fa;--wall:#6d8ca3;--wall-hi:#89a6bb;--plane:#e8553d;--line:#c2cfd9;
+  color-scheme:light;box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0d1319;--ink:#e6edf2;--sub:#8fa1af;--sky:#16202a;--wall:#41607a;--wall-hi:#587b97;--plane:#ff7a5c;--line:#26343f;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d1319;--ink:#e6edf2;--sub:#8fa1af;--sky:#16202a;--wall:#41607a;--wall-hi:#587b97;--plane:#ff7a5c;--line:#26343f;color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{
+  margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;
+  display:flex;justify-content:center;padding:18px 12px;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+}
+.wrap{width:100%;max-width:400px}
+h1{font-size:26px;margin:0 0 12px;letter-spacing:-.02em}
+canvas{display:block;width:100%;height:auto;aspect-ratio:2/3;border:1px solid var(--line);border-radius:12px;touch-action:none;cursor:pointer;background:var(--sky)}
+.help{color:var(--sub);font-size:13px;line-height:1.6;margin:12px 2px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>종이비행기</h1>
+  <canvas id="c" width="360" height="540" aria-label="종이비행기 게임 화면"></canvas>
+  <p class="help">화면을 탭하거나 클릭, 스페이스, ↑ 키를 누르면 위로 올라가요. 벽 사이의 틈을 지나면 1점이에요.</p>
+</div>
+<script>
+const W=360,H=540,PX=96,R=11,PW=54,GAP=150,SPACING=210,G=0.42,FLAP=-7.2;
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+let st='idle',y,vy,pipes,score,overT=0,acc=0,last=0,best=0;
+try{best=+localStorage.getItem('plane-best')||0}catch(e){}
+
+function reset(){
+  y=H/2;vy=0;pipes=[];score=0;acc=0;
+  addPipe(W+60);
+}
+function addPipe(x){
+  pipes.push({x,t:60+Math.random()*(H-GAP-120),p:false});
+}
+function start(){reset();st='play';last=performance.now()}
+function flap(){
+  if(st==='idle')start();
+  if(st==='play')vy=FLAP;
+  else if(st==='over'&&Date.now()-overT>500)start();
+}
+function die(){
+  st='over';overT=Date.now();
+  if(score>best){
+    best=score;
+    try{localStorage.setItem('plane-best',best)}catch(e){}
+  }
+}
+function step(){
+  vy=Math.min(vy+G,9);y+=vy;
+  const spd=2.4+Math.min(score*0.04,1.2);
+  pipes.forEach(p=>p.x-=spd);
+  const lp=pipes[pipes.length-1];
+  if(lp.x<W-SPACING)addPipe(W+10);
+  if(pipes[0].x<-PW-10)pipes.shift();
+  pipes.forEach(p=>{if(!p.p&&p.x+PW<PX-R){p.p=true;score++}});
+  if(y<R||y>H-R)return die();
+  for(const p of pipes){
+    if(PX+R>p.x&&PX-R<p.x+PW&&(y-R<p.t||y+R>p.t+GAP))return die();
+  }
+}
+function css(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim()}
+function draw(){
+  g.fillStyle=css('--sky');g.fillRect(0,0,W,H);
+  const wall=css('--wall'),hi=css('--wall-hi');
+  (pipes||[]).forEach(p=>{
+    g.fillStyle=wall;
+    g.fillRect(p.x,0,PW,p.t);
+    g.fillRect(p.x,p.t+GAP,PW,H-p.t-GAP);
+    g.fillStyle=hi;
+    g.fillRect(p.x,p.t-8,PW,8);
+    g.fillRect(p.x,p.t+GAP,PW,8);
+  });
+  if(y!==undefined){
+    g.save();
+    g.translate(PX,y);
+    g.rotate(Math.max(-0.5,Math.min(0.9,vy*0.07)));
+    g.fillStyle=css('--plane');
+    g.beginPath();g.moveTo(18,0);g.lineTo(-16,-12);g.lineTo(-9,0);g.lineTo(-16,12);g.closePath();g.fill();
+    g.fillStyle='rgba(0,0,0,.2)';
+    g.beginPath();g.moveTo(18,0);g.lineTo(-9,0);g.lineTo(-16,12);g.closePath();g.fill();
+    g.restore();
+  }
+  g.textAlign='center';g.fillStyle=css('--ink');
+  if(st==='play'||st==='over'){
+    g.font='700 44px system-ui,sans-serif';g.fillText(score,W/2,70);
+  }
+  if(st==='idle'){
+    g.font='700 24px system-ui,sans-serif';g.fillText('탭해서 시작',W/2,H/2-60);
+    g.fillStyle=css('--sub');g.font='15px system-ui,sans-serif';
+    g.fillText('최고 점수 '+best,W/2,H/2-30);
+  }
+  if(st==='over'){
+    g.fillStyle=css('--ink');g.font='700 28px system-ui,sans-serif';
+    g.fillText('게임 오버',W/2,H/2-60);
+    g.fillStyle=css('--sub');g.font='16px system-ui,sans-serif';
+    g.fillText('점수 '+score+'  ·  최고 '+best,W/2,H/2-28);
+    g.fillText('탭해서 다시 하기',W/2,H/2+4);
+  }
+}
+function frame(ts){
+  const dt=Math.min(ts-last,100);last=ts;
+  if(st==='play'){
+    acc+=dt;
+    while(acc>=1000/60&&st==='play'){acc-=1000/60;step()}
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+cv.addEventListener('pointerdown',e=>{e.preventDefault();flap()});
+document.addEventListener('keydown',e=>{
+  if(e.key===' '||e.key==='ArrowUp'){e.preventDefault();if(!e.repeat)flap()}
+});
+reset();y=H/2;
+requestAnimationFrame(t=>{last=t;frame(t)});
+</script>
+</body>
+</html>
