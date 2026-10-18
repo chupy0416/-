@@ -1,0 +1,364 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>한글 워들</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Layout: one centered column. Header, hint line, 6x6 jamo board, on-screen 두벌식 keyboard. Result and help open as a modal. */
+:root {
+  --bg: #eef1f6;
+  --surface: #ffffff;
+  --fg: #141a24;
+  --muted: #5b6577;
+  --line: #cfd6e2;
+  --hit: #1d5ed8;
+  --near: #bf7208;
+  --miss: #6a7384;
+  --key: #dbe1ec;
+  --key-fg: #141a24;
+  --on-color: #ffffff;
+  --overlay: rgba(14, 18, 26, 0.55);
+  --font-display: "Black Han Sans", "Noto Sans KR", sans-serif;
+  --font-body: "Noto Sans KR", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1218; --surface: #171d27; --fg: #e9edf4; --muted: #97a1b3; --line: #2b3442;
+    --hit: #3b7cf0; --near: #d08a1f; --miss: #3c4556; --key: #2a3342; --key-fg: #e9edf4;
+    --overlay: rgba(0, 0, 0, 0.65); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1218; --surface: #171d27; --fg: #e9edf4; --muted: #97a1b3; --line: #2b3442;
+  --hit: #3b7cf0; --near: #d08a1f; --miss: #3c4556; --key: #2a3342; --key-fg: #e9edf4;
+  --overlay: rgba(0, 0, 0, 0.65); color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 12px 20px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible { outline: 3px solid var(--hit); outline-offset: 2px; }
+.app { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+
+header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+h1 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 28px; letter-spacing: 0.01em; line-height: 1.1; }
+h1 small { display: block; font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--muted); letter-spacing: 0.08em; margin-top: 2px; }
+.bar { display: flex; gap: 6px; align-items: center; }
+.seg { display: inline-flex; background: var(--key); border-radius: 8px; padding: 3px; }
+.seg button { border: 0; background: transparent; padding: 6px 11px; border-radius: 6px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0,0,0,.18); }
+.icon { border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
+
+.hint { margin: 0; font-size: 13px; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+.hint b { color: var(--fg); font-weight: 700; }
+
+.board-wrap { display: flex; justify-content: center; }
+.board { display: grid; grid-template-rows: repeat(6, auto); gap: 6px; }
+.row { display: grid; grid-template-columns: repeat(6, var(--tile)); gap: 6px; }
+.board { --tile: clamp(38px, min(calc((min(100vw, 440px) - 32px - 30px) / 6), calc((100dvh - 430px) / 6)), 62px); }
+.t {
+  width: var(--tile); height: var(--tile); display: grid; place-items: center;
+  border: 2px solid var(--line); border-radius: 6px; background: var(--final, var(--surface));
+  font-size: calc(var(--tile) * 0.52); font-weight: 700; line-height: 1; color: var(--fg);
+}
+.t[data-f="1"] { border-color: var(--muted); }
+.t[data-s] { border-color: var(--final); color: var(--on-color); }
+.t[data-s="hit"] { --final: var(--hit); }
+.t[data-s="near"] { --final: var(--near); }
+.t[data-s="miss"] { --final: var(--miss); }
+.t.pop { animation: pop 0.12s ease-out; }
+.t.rev { animation: flip 0.5s var(--d, 0s) both; }
+.row.shake { animation: shake 0.4s; }
+@keyframes pop { 50% { transform: scale(1.1); } }
+@keyframes flip {
+  0% { transform: rotateX(0); background: var(--surface); border-color: var(--muted); color: var(--fg); }
+  49% { transform: rotateX(90deg); background: var(--surface); border-color: var(--muted); color: var(--fg); }
+  51% { transform: rotateX(90deg); background: var(--final); border-color: var(--final); color: var(--on-color); }
+  100% { transform: rotateX(0); background: var(--final); border-color: var(--final); color: var(--on-color); }
+}
+@keyframes shake { 20%, 60% { transform: translateX(-5px); } 40%, 80% { transform: translateX(5px); } }
+
+.kb { display: flex; flex-direction: column; gap: 6px; }
+.kr { display: flex; gap: 5px; justify-content: center; }
+.k {
+  flex: 1 1 0; min-width: 0; height: 50px; border: 0; border-radius: 7px; background: var(--key); color: var(--key-fg);
+  font-size: 18px; font-weight: 700; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent;
+}
+.k.wide { flex: 1.5 1 0; font-size: 14px; }
+.k.enter { flex: 1 1 100%; font-size: 15px; background: var(--fg); color: var(--bg); }
+.k[aria-pressed="true"] { background: var(--hit); color: var(--on-color); }
+.k[data-s] { color: var(--on-color); }
+.k[data-s="hit"] { background: var(--hit); }
+.k[data-s="near"] { background: var(--near); }
+.k[data-s="miss"] { background: var(--miss); opacity: 0.55; }
+
+.toast { position: fixed; left: 50%; top: calc(14px + env(safe-area-inset-top, 0px)); transform: translateX(-50%); z-index: 30;
+  background: var(--fg); color: var(--bg); padding: 9px 16px; border-radius: 8px; font-size: 14px; font-weight: 500; pointer-events: none; max-width: calc(100vw - 32px); }
+
+.overlay { position: fixed; inset: 0; z-index: 20; background: var(--overlay); display: grid; place-items: center;
+  padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); }
+.panel { background: var(--surface); width: 100%; max-width: 400px; max-height: 100%; overflow-y: auto; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; border: 1px solid var(--line); }
+.panel h2 { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: 22px; }
+.panel p { margin: 0; line-height: 1.55; font-size: 14px; text-wrap: pretty; }
+.panel .x { align-self: flex-end; margin-bottom: -8px; border: 0; background: transparent; font-size: 22px; line-height: 1; padding: 4px 8px; color: var(--muted); }
+.answer { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.answer .w { font-family: var(--font-display); font-size: 34px; line-height: 1.1; }
+.answer .j { color: var(--muted); font-size: 13px; letter-spacing: 0.15em; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; text-align: center; }
+.stats div { display: flex; flex-direction: column; gap: 2px; }
+.stats b { font-size: 24px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 11px; color: var(--muted); }
+.dist { display: grid; grid-template-columns: 14px 1fr; gap: 4px 8px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dist i { display: block; background: var(--miss); color: var(--on-color); font-style: normal; padding: 2px 6px; border-radius: 3px; min-width: 22px; text-align: right; font-size: 12px; }
+.dist i.me { background: var(--hit); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.btn { flex: 1 1 130px; border: 0; border-radius: 8px; padding: 12px 14px; font-weight: 700; font-size: 14px; background: var(--key); color: var(--key-fg); }
+.btn.primary { background: var(--hit); color: var(--on-color); }
+.sw { display: flex; gap: 10px; flex-direction: column; font-size: 14px; }
+.sw div { display: flex; align-items: center; gap: 10px; }
+.sw span { width: 26px; height: 26px; border-radius: 5px; display: inline-block; flex: none; }
+.share { width: 100%; resize: none; font: inherit; font-size: 13px; padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .t.rev, .t.pop, .row.shake { animation: none; }
+}
+@media (max-width: 380px) { .k { height: 46px; font-size: 16px; } h1 { font-size: 24px; } }
+</style>
+
+<div class="app">
+  <header>
+    <h1>한글 워들<small>자모 6칸 · 6번의 기회</small></h1>
+    <div class="bar">
+      <div class="seg" role="group" aria-label="게임 모드">
+        <button id="m-daily" type="button" aria-pressed="true">오늘</button>
+        <button id="m-free" type="button" aria-pressed="false">연습</button>
+      </div>
+      <button id="b-help" class="icon" type="button" aria-label="도움말">?</button>
+      <button id="b-stats" class="icon" type="button">기록</button>
+    </div>
+  </header>
+  <p class="hint">정답은 자모 6개로 이루어진 단어예요. <b>ㅘ</b>는 ㅗ+ㅏ, <b>ㄳ</b>은 ㄱ+ㅅ처럼 풀어서 입력하세요. 쌍자음은 ⇧로 입력해요.</p>
+  <div class="board-wrap"><div class="board" id="board" aria-label="추측 보드"></div></div>
+  <div class="kb" id="kb"></div>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<div id="overlay" class="overlay" hidden></div>
+
+<script>
+//<core
+const CHO = ['ㄱ','ㄲ','ㄴ','ㄷ','ㄸ','ㄹ','ㅁ','ㅂ','ㅃ','ㅅ','ㅆ','ㅇ','ㅈ','ㅉ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const JUNG = ['ㅏ','ㅐ','ㅑ','ㅒ','ㅓ','ㅔ','ㅕ','ㅖ','ㅗ','ㅘ','ㅙ','ㅚ','ㅛ','ㅜ','ㅝ','ㅞ','ㅟ','ㅠ','ㅡ','ㅢ','ㅣ'];
+const JONG = ['','ㄱ','ㄲ','ㄳ','ㄴ','ㄵ','ㄶ','ㄷ','ㄹ','ㄺ','ㄻ','ㄼ','ㄽ','ㄾ','ㄿ','ㅀ','ㅁ','ㅂ','ㅄ','ㅅ','ㅆ','ㅇ','ㅈ','ㅊ','ㅋ','ㅌ','ㅍ','ㅎ'];
+const VSPLIT = { 'ㅘ':'ㅗㅏ','ㅙ':'ㅗㅐ','ㅚ':'ㅗㅣ','ㅝ':'ㅜㅓ','ㅞ':'ㅜㅔ','ㅟ':'ㅜㅣ','ㅢ':'ㅡㅣ' };
+const JSPLIT = { 'ㄳ':'ㄱㅅ','ㄵ':'ㄴㅈ','ㄶ':'ㄴㅎ','ㄺ':'ㄹㄱ','ㄻ':'ㄹㅁ','ㄼ':'ㄹㅂ','ㄽ':'ㄹㅅ','ㄾ':'ㄹㅌ','ㄿ':'ㄹㅍ','ㅀ':'ㄹㅎ','ㅄ':'ㅂㅅ' };
+function decompose(word) {
+  const out = [];
+  for (const ch of word) {
+    const c = ch.charCodeAt(0) - 0xAC00;
+    if (c < 0 || c > 11171) { out.push(ch); continue; }
+    out.push(CHO[Math.floor(c / 588)]);
+    const v = JUNG[Math.floor((c % 588) / 28)];
+    out.push(...(VSPLIT[v] || v).split(''));
+    const f = JONG[c % 28];
+    if (f) out.push(...(JSPLIT[f] || f).split(''));
+  }
+  return out;
+}
+const WORDS = `학생 선생 인형 음식 얼굴 운동 은행 병원 강물 방학 눈물 연필 책상 의자 창문 신문 겨울 여름 구름 마음 손님 점심 저녁 아침 우산 안경 시계 열쇠 냉장고 세탁기 바나나 고구마 아버지 어머니 토마토 도라지 고양이 강아지 코끼리 호랑이 개구리 거북이 다람쥐 오징어 라면 김밥 떡볶이 비빔밥 불고기 된장 간장 고추 마늘 양파 당근 감자 배추 사과 포도 딸기 수박 참외 복숭아 오렌지 레몬 자전거 비행기 기차 지하철 버스 택시 학교 도서관 박물관 미술관 운동장 놀이터 식당 약국 시장 공항 우체국 소방서 경찰서 컴퓨터 스마트폰 텔레비전 에어컨 청소기 이불 베개 거울 수건 비누 칫솔 치약 샴푸 화장실 부엌 거실 침대 소파 책장 책가방 공책 지우개 색연필 크레파스 도화지 풍선 장난감 로봇 공룡 우주선 별똥별 무지개 하늘 바다 호수 폭포 사막 화산 선풍기 세탁소 놀이공원 공책 신발 양말 바지 치마 모자 장갑 목도리 외투 단추 지갑 가위 연못 소나무 은행나무 단풍 낙엽 눈사람 태풍 번개 천둥 안개 소나기 장마 가을 봄비 달력 일기장 편지 엽서 우표 선물 생일 축제 운동회 소풍 방송 라디오 영화 음악 노래 피아노 기타 바이올린 북소리 미소 웃음 박수 악수 포옹 친구 가족 동생 오빠 언니 할머니 할아버지 삼촌 이모 고모 사촌 이웃 선배 후배 동료 손자 의사 간호사 요리사 소방관 경찰관 선수 감독 가수 배우 작가 화가 기자 군인 농부 어부 상인 학자`;
+const POOL = [...new Set(WORDS.split(/\s+/))].map(w => ({ w, j: decompose(w) })).filter(x => x.j.length === 6);
+//core>
+
+const SHIFT = { 'ㅂ':'ㅃ','ㅈ':'ㅉ','ㄷ':'ㄸ','ㄱ':'ㄲ','ㅅ':'ㅆ','ㅐ':'ㅒ','ㅔ':'ㅖ' };
+const CODE = { KeyQ:'ㅂ',KeyW:'ㅈ',KeyE:'ㄷ',KeyR:'ㄱ',KeyT:'ㅅ',KeyY:'ㅛ',KeyU:'ㅕ',KeyI:'ㅑ',KeyO:'ㅐ',KeyP:'ㅔ',
+  KeyA:'ㅁ',KeyS:'ㄴ',KeyD:'ㅇ',KeyF:'ㄹ',KeyG:'ㅎ',KeyH:'ㅗ',KeyJ:'ㅓ',KeyK:'ㅏ',KeyL:'ㅣ',
+  KeyZ:'ㅋ',KeyX:'ㅌ',KeyC:'ㅊ',KeyV:'ㅍ',KeyB:'ㅠ',KeyN:'ㅜ',KeyM:'ㅡ' };
+const ROWS = ['ㅂㅈㄷㄱㅅㅛㅕㅑㅐㅔ', 'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ', 'ㅋㅌㅊㅍㅠㅜㅡ'];
+const KEY = 'hangul-wordle:v1';
+const $ = id => document.getElementById(id);
+
+let store = { stats: { played: 0, wins: 0, streak: 0, best: 0, dist: [0,0,0,0,0,0] }, daily: null };
+try { const s = JSON.parse(localStorage.getItem(KEY)); if (s && s.stats) store = s; } catch (e) {}
+function persist() { try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) {} }
+
+function today() {
+  try { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul' }).format(new Date()); }
+  catch (e) { return new Date().toISOString().slice(0, 10); }
+}
+function hash(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return h >>> 0; }
+function evaluate(g, a) {
+  const res = Array(6).fill('miss'), left = {};
+  for (let i = 0; i < 6; i++) { if (g[i] === a[i]) res[i] = 'hit'; else left[a[i]] = (left[a[i]] || 0) + 1; }
+  for (let i = 0; i < 6; i++) if (res[i] !== 'hit' && left[g[i]] > 0) { res[i] = 'near'; left[g[i]]--; }
+  return res;
+}
+
+let S = {};
+function newGame(mode) {
+  const date = today();
+  let ans, guesses = [];
+  if (mode === 'daily') {
+    ans = POOL[hash(date) % POOL.length];
+    if (store.daily && store.daily.date === date) guesses = store.daily.guesses.map(s => s.split(''));
+  } else {
+    let n; do { n = POOL[Math.floor(Math.random() * POOL.length)]; } while (S.ans && n.w === S.ans.w && POOL.length > 1);
+    ans = n;
+  }
+  S = { mode, date, ans, guesses, results: guesses.map(g => evaluate(g, ans.j)), cur: [], shift: false, busy: false, keys: {} };
+  S.won = S.results.some(r => r.every(x => x === 'hit'));
+  S.done = S.won || guesses.length >= 6;
+  S.results.forEach((r, i) => markKeys(S.guesses[i], r));
+  $('m-daily').setAttribute('aria-pressed', mode === 'daily');
+  $('m-free').setAttribute('aria-pressed', mode === 'free');
+  renderBoard(); renderKeys();
+}
+function markKeys(g, r) {
+  const rank = { miss: 1, near: 2, hit: 3 };
+  g.forEach((j, i) => { if (!S.keys[j] || rank[r[i]] > rank[S.keys[j]]) S.keys[j] = r[i]; });
+}
+
+const board = $('board');
+for (let r = 0; r < 6; r++) {
+  const row = document.createElement('div'); row.className = 'row';
+  for (let c = 0; c < 6; c++) { const t = document.createElement('div'); t.className = 't'; row.appendChild(t); }
+  board.appendChild(row);
+}
+function renderBoard(animRow = -1) {
+  [...board.children].forEach((row, r) => {
+    [...row.children].forEach((t, c) => {
+      const g = S.guesses[r], res = S.results[r];
+      t.className = 't'; t.style.removeProperty('--d');
+      if (g) {
+        t.textContent = g[c]; t.dataset.s = res[c]; delete t.dataset.f;
+        if (r === animRow) { t.classList.add('rev'); t.style.setProperty('--d', (c * 0.22) + 's'); }
+      } else {
+        delete t.dataset.s;
+        const ch = r === S.guesses.length ? S.cur[c] : '';
+        t.textContent = ch || ''; if (ch) t.dataset.f = '1'; else delete t.dataset.f;
+      }
+    });
+  });
+}
+function popTile(i) { const t = board.children[S.guesses.length]?.children[i]; if (t) { t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop'); } }
+
+function renderKeys() {
+  const kb = $('kb'); kb.textContent = '';
+  const mk = (label, cls, fn, jamo) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'k ' + (cls || ''); b.textContent = label;
+    if (jamo && S.keys[label]) b.dataset.s = S.keys[label];
+    b.addEventListener('click', fn); return b;
+  };
+  ROWS.forEach((chars, ri) => {
+    const row = document.createElement('div'); row.className = 'kr';
+    if (ri === 2) {
+      const sh = mk('⇧', 'wide', () => { S.shift = !S.shift; renderKeys(); });
+      sh.setAttribute('aria-pressed', S.shift); sh.setAttribute('aria-label', '쌍자음 입력');
+      row.appendChild(sh);
+    }
+    for (const ch of chars) { const j = S.shift && SHIFT[ch] ? SHIFT[ch] : ch; row.appendChild(mk(j, '', () => addJamo(j), true)); }
+    if (ri === 2) { const d = mk('⌫', 'wide', del); d.setAttribute('aria-label', '지우기'); row.appendChild(d); }
+    kb.appendChild(row);
+  });
+  const er = document.createElement('div'); er.className = 'kr';
+  er.appendChild(mk('입력', 'enter', submit)); kb.appendChild(er);
+}
+
+function toast(msg, ms = 1400) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast.id); toast.id = setTimeout(() => { t.hidden = true; }, ms);
+}
+function blocked() { return S.done || S.busy || !$('overlay').hidden; }
+function addJamo(j) {
+  if (blocked() || S.cur.length >= 6) return;
+  S.cur.push(j); if (S.shift) { S.shift = false; renderKeys(); }
+  renderBoard(); popTile(S.cur.length - 1);
+}
+function del() { if (blocked() || !S.cur.length) return; S.cur.pop(); renderBoard(); }
+function submit() {
+  if (blocked()) return;
+  if (S.cur.length < 6) {
+    const row = board.children[S.guesses.length]; row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake');
+    toast('자모 6개를 모두 입력하세요'); return;
+  }
+  const g = S.cur.slice(), res = evaluate(g, S.ans.j), rowIdx = S.guesses.length;
+  S.guesses.push(g); S.results.push(res); S.cur = [];
+  const won = res.every(x => x === 'hit'), over = won || S.guesses.length >= 6;
+  S.busy = true;
+  if (S.mode === 'daily') store.daily = { date: S.date, guesses: S.guesses.map(x => x.join('')) };
+  if (over) { S.done = true; S.won = won; if (S.mode === 'daily') record(won, S.guesses.length); }
+  persist(); renderBoard(rowIdx);
+  setTimeout(() => {
+    markKeys(g, res); renderKeys(); S.busy = false;
+    if (over) {
+      toast(won ? ['천재!', '대단해요!', '훌륭해요!', '잘했어요!', '아슬아슬!', '간신히!'][rowIdx] : '아쉬워요. 정답은 ' + S.ans.w, 2200);
+      setTimeout(() => openResult(won ? rowIdx + 1 : 0), 900);
+    }
+  }, 5 * 220 + 520);
+}
+function record(won, tries) {
+  const st = store.stats; st.played++;
+  if (won) { st.wins++; st.streak++; st.best = Math.max(st.best, st.streak); st.dist[tries - 1]++; } else st.streak = 0;
+}
+
+const ov = $('overlay');
+function openModal(html) { ov.innerHTML = '<div class="panel" role="dialog" aria-modal="true"><button class="x" type="button" id="x" aria-label="닫기">×</button>' + html + '</div>'; ov.hidden = false; $('x').addEventListener('click', closeModal); $('x').focus(); }
+function closeModal() { ov.hidden = true; ov.innerHTML = ''; }
+ov.addEventListener('click', e => { if (e.target === ov) closeModal(); });
+
+function shareText() {
+  const label = S.mode === 'daily' ? S.date : '연습';
+  const n = S.won ? S.guesses.length : 'X';
+  const em = { hit: '🟦', near: '🟧', miss: '⬜' };
+  return '한글 워들 ' + label + ' ' + n + '/6\n' + S.results.map(r => r.map(x => em[x]).join('')).join('\n');
+}
+function openResult(tries) {
+  const st = store.stats, max = Math.max(1, ...st.dist);
+  const pct = st.played ? Math.round(st.wins / st.played * 100) : 0;
+  let h = '';
+  if (S.done) h += '<h2>' + (S.won ? '정답이에요' : '다음 기회에') + '</h2><div class="answer"><span class="w">' + S.ans.w + '</span><span class="j">' + S.ans.j.join(' ') + '</span></div>';
+  else h += '<h2>기록</h2>';
+  h += '<div class="stats"><div><b>' + st.played + '</b><span>플레이</span></div><div><b>' + pct + '%</b><span>승률</span></div><div><b>' + st.streak + '</b><span>연속</span></div><div><b>' + st.best + '</b><span>최다 연속</span></div></div>';
+  h += '<div><p style="font-size:12px;color:var(--muted);margin-bottom:6px">오늘의 단어 성적 분포</p><div class="dist">';
+  st.dist.forEach((n, i) => { h += '<span>' + (i + 1) + '</span><i class="' + (tries === i + 1 && S.mode === 'daily' ? 'me' : '') + '" style="width:' + Math.max(8, n / max * 100) + '%">' + n + '</i>'; });
+  h += '</div></div>';
+  h += '<div class="btns">';
+  if (S.done) h += '<button class="btn primary" type="button" id="share">결과 복사</button>';
+  h += '<button class="btn" type="button" id="again">' + (S.mode === 'daily' ? '연습 게임 시작' : '새 단어') + '</button></div><div id="fb"></div>';
+  openModal(h);
+  const sh = $('share');
+  if (sh) sh.addEventListener('click', () => {
+    const txt = shareText();
+    const fallback = () => { $('fb').innerHTML = '<textarea class="share" id="ta" rows="7" readonly></textarea>'; const ta = $('ta'); ta.value = txt; ta.select(); };
+    try { navigator.clipboard.writeText(txt).then(() => toast('복사했어요'), fallback); } catch (e) { fallback(); }
+  });
+  $('again').addEventListener('click', () => { closeModal(); newGame('free'); });
+}
+function openHelp() {
+  openModal('<h2>하는 방법</h2><p>단어 하나를 자모 6개로 쪼개서 6번 안에 맞혀 보세요. 입력한 자모는 단어가 아니어도 괜찮아요.</p>' +
+    '<div class="sw"><div><span style="background:var(--hit)"></span>정답 자모가 그 자리에 있어요</div><div><span style="background:var(--near)"></span>단어에 있지만 자리가 달라요</div><div><span style="background:var(--miss)"></span>단어에 없어요</div></div>' +
+    '<p>겹모음과 겹받침은 풀어서 입력해요. 예를 들어 <b>과</b>는 ㄱ ㅗ ㅏ, <b>값</b>은 ㄱ ㅏ ㅂ ㅅ이에요. ㄲ ㄸ ㅃ ㅆ ㅉ ㅒ ㅖ는 ⇧를 누르고 입력하세요.</p>' +
+    '<p>「오늘」은 하루에 한 단어, 「연습」은 원하는 만큼 새 단어로 즐길 수 있어요. 기록은 오늘의 단어만 반영돼요.</p>');
+}
+
+$('m-daily').addEventListener('click', () => { if (S.mode !== 'daily') newGame('daily'); });
+$('m-free').addEventListener('click', () => { newGame('free'); });
+$('b-help').addEventListener('click', openHelp);
+$('b-stats').addEventListener('click', () => openResult(0));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && !ov.hidden) { closeModal(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (!ov.hidden) return;
+  if (e.key === 'Enter') { if (document.activeElement && document.activeElement.tagName === 'BUTTON') return; e.preventDefault(); submit(); }
+  else if (e.key === 'Backspace') { e.preventDefault(); del(); }
+  else if (CODE[e.code]) { e.preventDefault(); const b = CODE[e.code]; addJamo(e.shiftKey && SHIFT[b] ? SHIFT[b] : b); }
+});
+
+newGame('daily');
+</script>
+
+</body></html>
