@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>원카드 2인 대전</title>
+<style>
+:root{--bg:#f4f1ea;--sf:#fff;--tx:#1d1d1b;--mu:#6b6860;--ac:#1f7a4d;--bd:#d8d3c8;--rd:#c8302b;--fe:#0f5a38;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14201a;--sf:#1e2c25;--tx:#f1efe8;--mu:#a9b3ac;--ac:#4cc58a;--bd:#34463c;--rd:#ff7a73;--fe:#0c1a13}}
+:root[data-theme="dark"]{--bg:#14201a;--sf:#1e2c25;--tx:#f1efe8;--mu:#a9b3ac;--ac:#4cc58a;--bd:#34463c;--rd:#ff7a73;--fe:#0c1a13}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;min-height:100vh}
+main{max-width:480px;margin:0 auto;padding:16px}
+h1{font-size:24px;margin:8px 0 4px}
+p.s{color:var(--mu);margin:0 0 20px;font-size:14px}
+.box{background:var(--sf);border:1px solid var(--bd);border-radius:16px;padding:16px;margin-bottom:12px}
+button{font:inherit;cursor:pointer}
+.btn{width:100%;padding:14px;border-radius:12px;border:0;background:var(--ac);color:#fff;font-weight:700;font-size:16px}
+.btn.g{background:transparent;color:var(--tx);border:1px solid var(--bd)}
+input{width:100%;padding:14px;border-radius:12px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:22px;text-align:center;letter-spacing:6px;margin-bottom:10px}
+.code{font-size:44px;font-weight:800;letter-spacing:8px;text-align:center;margin:8px 0}
+.msg{color:var(--rd);font-size:14px;min-height:20px;margin-top:6px;text-align:center}
+.hide{display:none!important}
+.top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--mu);margin-bottom:8px}
+.table{background:var(--fe);border-radius:20px;padding:14px;color:#fff;text-align:center}
+.opp{display:flex;justify-content:center;min-height:60px;padding-left:20px;flex-wrap:wrap}
+.opp .c{width:30px;height:44px;margin-left:-12px;margin-bottom:2px}
+.mid{display:flex;justify-content:center;align-items:center;gap:20px;margin:14px 0}
+.c{width:52px;height:76px;border-radius:8px;background:#fff;color:#1d1d1b;border:1px solid #bbb;display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:800;font-size:20px;line-height:1.1;padding:0;flex:none}
+.c.r{color:#c8302b}
+.c.back{background:repeating-linear-gradient(45deg,#2b4fa3,#2b4fa3 4px,#3a62c0 4px,#3a62c0 8px);border-color:#fff}
+.c.big{width:70px;height:100px;font-size:28px}
+.c.j{font-size:13px}
+.info{min-height:44px;font-size:14px}
+.badge{display:inline-block;background:#ffd84d;color:#222;border-radius:99px;padding:2px 10px;font-weight:700;font-size:13px;margin:2px}
+.turn{font-weight:800;font-size:16px;margin:8px 0;text-align:center}
+.turn.me{color:var(--ac)}
+.hand{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-top:8px}
+.hand .c{cursor:pointer;transition:transform .1s}
+.hand .c.ok{transform:translateY(-6px);box-shadow:0 0 0 3px var(--ac)}
+.hand .c.no{opacity:.45}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:5}
+.ov .box{width:280px;text-align:center}
+.suits{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.suits button{font-size:34px;padding:10px;border-radius:12px;border:1px solid var(--bd);background:#fff}
+</style>
+</head>
+<body>
+<main>
+<h1>🃏 원카드</h1>
+<p class="s">2인 대전 · 방을 만들거나 방 번호로 입장하세요</p>
+
+<section id="lobby">
+  <div class="box">
+    <button class="btn" id="mk">방 만들기</button>
+  </div>
+  <div class="box">
+    <input id="num" inputmode="numeric" maxlength="4" placeholder="방 번호 4자리">
+    <button class="btn g" id="jn">방 번호로 입장</button>
+  </div>
+  <div class="msg" id="lmsg"></div>
+  <div class="box" style="font-size:13px;color:var(--mu)">
+    규칙: 같은 무늬 또는 같은 숫자를 냅니다. 2(+2), A(+3, ♠A는 +5), 조커(+5/+7)는 공격 카드이고 이어서 낼 수 있어요. J·Q·K는 한 번 더, 7은 무늬 바꾸기. 낼 카드가 없으면 덱을 눌러 뽑고, 손패가 15장 이상이 되면 패배합니다. 먼저 다 내면 승리!
+  </div>
+</section>
+
+<section id="wait" class="hide">
+  <div class="box" style="text-align:center">
+    <div>친구에게 이 번호를 알려주세요</div>
+    <div class="code" id="wcode"></div>
+    <div style="color:var(--mu);font-size:14px">상대가 입장하면 자동으로 시작됩니다…</div>
+  </div>
+  <button class="btn g" id="lv1">나가기</button>
+</section>
+
+<section id="game" class="hide">
+  <div class="top"><span>방 <b id="gcode"></b></span><button class="btn g" style="width:auto;padding:6px 12px;font-size:13px" id="lv2">나가기</button></div>
+  <div class="table">
+    <div style="font-size:13px;opacity:.8">상대 손패 <b id="ocnt"></b>장</div>
+    <div class="opp" id="opp"></div>
+    <div class="mid">
+      <button class="c big back" id="deck" aria-label="덱에서 뽑기"></button>
+      <div id="top"></div>
+    </div>
+    <div class="info" id="info"></div>
+  </div>
+  <div class="turn" id="turn"></div>
+  <div class="hand" id="hand"></div>
+</section>
+</main>
+
+<div class="ov hide" id="pick"><div class="box"><b>바꿀 무늬를 고르세요</b>
+  <div class="suits"><button data-s="S">♠</button><button data-s="H" style="color:#c8302b">♥</button><button data-s="D" style="color:#c8302b">♦</button><button data-s="C">♣</button></div></div></div>
+<div class="ov hide" id="end"><div class="box"><div style="font-size:40px" id="eico"></div><h2 id="etxt"></h2><div style="color:var(--mu);font-size:14px;margin-bottom:12px" id="esub"></div>
+  <button class="btn" id="again">다시 하기</button></div></div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+var db=null,me=null,ref=null,unsub=null,st=null,code=null,pend=null;
+var SY={S:'♠',H:'♥',D:'♦',C:'♣'};
+
+function shuffle(a){for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1));var t=a[i];a[i]=a[j];a[j]=t}return a}
+function mkDeck(){var d=[];'SHDC'.split('').forEach(function(s){'A23456789TJQK'.split('').forEach(function(r){d.push(s+r)})});d.push('XB','XC');return shuffle(d)}
+function av(c){if(c==='XB')return 5;if(c==='XC')return 7;if(c==='SA')return 5;if(c[1]==='A')return 3;if(c[1]==='2')return 2;return 0}
+function show(id){['lobby','wait','game'].forEach(function(x){$(x).classList.toggle('hide',x!==id)})}
+function lm(t){$('lmsg').textContent=t||''}
+
+function cardEl(c,cls){
+  var b=document.createElement('button');b.className='c '+(cls||'');
+  if(c[0]==='X'){b.classList.add('j');b.innerHTML=c==='XB'?'조커<br>흑백':'조커<br>컬러';if(c==='XC')b.classList.add('r')}
+  else{if(c[0]==='H'||c[0]==='D')b.classList.add('r');b.innerHTML='<span>'+(c[1]==='T'?'10':c[1])+'</span><span>'+SY[c[0]]+'</span>'}
+  return b}
+
+function curSuit(){var t=st.pile[st.pile.length-1];if(st.suit)return st.suit;return t[0]==='X'?null:t[0]}
+function canPlay(c){
+  var t=st.pile[st.pile.length-1],cs=curSuit();
+  if(st.attack>0){return av(c)>0&&(c[0]==='X'||cs===null||c[0]===cs||(t[0]!=='X'&&c[1]===t[1]))}
+  if(c[0]==='X'||cs===null)return true;
+  return c[0]===cs||(t[0]!=='X'&&c[1]===t[1])}
+
+async function init(){
+  try{
+    var u=await claude.use('user');db=await claude.use('db');
+    if(!u||!db){lm('로그인한 상태에서 열어야 플레이할 수 있어요.');return}
+    var k='oc_dev';try{me=localStorage.getItem(k);if(!me){me=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem(k,me)}}catch(e){}
+    if(!me)me=Math.random().toString(36).slice(2);
+  }catch(e){lm('연결에 실패했어요.')}
+}
+function ready(){if(!db||!me){lm('아직 연결 중이에요. 잠시 후 다시 눌러주세요.');return false}return true}
+
+$('mk').onclick=async function(){
+  if(!ready())return;lm('');
+  try{
+    for(var k=0;k<6;k++){
+      var c=String(Math.floor(1000+Math.random()*9000));
+      var s=await db.doc('rooms/'+c).get();
+      if(!s.exists||Date.now()-(s.data().created||0)>6*3600*1000){
+        await db.doc('rooms/'+c).set({players:[me],status:'wait',created:Date.now()});
+        return enter(c)}
+    }
+    lm('방 만들기에 실패했어요. 다시 시도해주세요.')
+  }catch(e){lm('방을 만들 수 없어요. 편집 권한이 필요할 수 있어요.')}
+};
+$('jn').onclick=async function(){
+  if(!ready())return;lm('');
+  var c=$('num').value.trim();if(!/^\d{4}$/.test(c)){lm('4자리 숫자를 입력하세요.');return}
+  try{
+    var s=await db.doc('rooms/'+c).get();
+    if(!s.exists){lm('없는 방 번호예요.');return}
+    var d=s.data();
+    if(d.players.indexOf(me)>=0)return enter(c);
+    if(d.players.length>=2){lm('이미 두 명이 있는 방이에요.');return}
+    var g=deal([d.players[0],me]);g.created=d.created;
+    await db.doc('rooms/'+c).set(g);enter(c);
+  }catch(e){lm('입장할 수 없어요. 참여 권한이 필요할 수 있어요.')}
+};
+function deal(pl){
+  var d=mkDeck(),h0=d.splice(0,7),h1=d.splice(0,7),i=0;
+  while(i<d.length&&(d[i][0]==='X'||'2A7JQK'.indexOf(d[i][1])>=0))i++;
+  var f=d.splice(i,1);
+  return{players:pl,status:'play',h0:h0,h1:h1,deck:d,pile:f,t:0,attack:0,suit:null,winner:-1,msg:'게임 시작!',created:Date.now()}}
+function enter(c){
+  code=c;ref=db.doc('rooms/'+c);
+  if(unsub)unsub();
+  unsub=ref.onSnapshot(function(s){st=s.exists?s.data():null;render()},function(){lm('연결이 끊겼어요.')});
+}
+function leave(){if(unsub)unsub();unsub=null;st=null;code=null;show('lobby');$('end').classList.add('hide')}
+$('lv1').onclick=leave;$('lv2').onclick=leave;
+
+function render(){
+  if(!st){show('lobby');return}
+  if(st.status==='wait'){show('wait');$('wcode').textContent=code;return}
+  show('game');$('gcode').textContent=code;
+  var i=st.players.indexOf(me);if(i<0){leave();return}
+  var mine=st['h'+i],oth=st['h'+(1-i)];
+  $('ocnt').textContent=oth.length;
+  var o=$('opp');o.innerHTML='';oth.forEach(function(){var d=document.createElement('div');d.className='c back';o.appendChild(d)});
+  var dk=$('deck');dk.innerHTML='<span style="color:#fff;font-size:12px">덱<br>'+st.deck.length+'</span>';
+  var top=st.pile[st.pile.length-1],tt=$('top');tt.innerHTML='';
+  var te=cardEl(top,'big');te.disabled=true;tt.appendChild(te);
+  var inf=st.msg||'';
+  if(st.attack>0)inf+=' <span class="badge">공격 +'+st.attack+'</span>';
+  if(st.suit)inf+=' <span class="badge">무늬 '+SY[st.suit]+'</span>';
+  $('info').innerHTML=inf;
+  var my=st.t===i&&st.status==='play';
+  var tn=$('turn');tn.textContent=st.status==='over'?'':(my?'내 차례예요!':'상대 차례예요…');tn.className='turn'+(my?' me':'');
+  var h=$('hand');h.innerHTML='';
+  mine.forEach(function(c){
+    var ok=my&&canPlay(c),b=cardEl(c,ok?'ok':'no');
+    b.onclick=function(){if(!ok)return;if(c[1]==='7'&&c[0]!=='X'){pend=c;$('pick').classList.remove('hide')}else play(c,null)};
+    h.appendChild(b)});
+  dk.onclick=function(){if(my)draw()};
+  dk.style.boxShadow=my?'0 0 0 3px #ffd84d':'none';
+  var ov=st.status==='over';$('end').classList.toggle('hide',!ov);
+  if(ov){var w=st.winner===i;$('eico').textContent=w?'🎉':'😢';$('etxt').textContent=w?'승리!':'패배…';$('esub').textContent=st.msg||''}
+}
+document.querySelectorAll('#pick button').forEach(function(b){b.onclick=function(){$('pick').classList.add('hide');play(pend,b.dataset.s);pend=null}});
+$('again').onclick=function(){if(ref)ref.set(deal(st.players))};
+
+function clone(){return JSON.parse(JSON.stringify(st))}
+async function save(s){try{await ref.set(s)}catch(e){lm('저장 실패')}}
+function play(c,suit){
+  var i=st.players.indexOf(me),s=clone(),h=s['h'+i];
+  h.splice(h.indexOf(c),1);s.pile.push(c);
+  s.suit=c[0]==='X'?null:(c[1]==='7'?suit:null);
+  s.attack+=av(c);s.msg=(i===0?'방장':'참가자')+'이 '+(c[0]==='X'?'조커':SY[c[0]]+(c[1]==='T'?'10':c[1]))+' 제출';
+  if(h.length===0){s.status='over';s.winner=i;s.msg='손패를 모두 냈어요'}
+  else if(c[0]!=='X'&&'JQK'.indexOf(c[1])>=0){s.t=i;s.msg+=' · 한 번 더!'}
+  else s.t=1-i;
+  if(h.length===1&&s.status==='play')s.msg+=' · 원카드!';
+  save(s)}
+function draw(){
+  var i=st.players.indexOf(me),s=clone(),n=s.attack||1;
+  if(s.deck.length<n){var t=s.pile.pop();s.deck=shuffle(s.pile).concat(s.deck);s.pile=[t]}
+  var g=s.deck.splice(0,n);s['h'+i]=s['h'+i].concat(g);
+  s.msg=(i===0?'방장':'참가자')+'이 '+g.length+'장 뽑음';s.attack=0;s.t=1-i;
+  if(s['h'+i].length>=15){s.status='over';s.winner=1-i;s.msg='손패가 15장 이상이 되었어요'}
+  save(s)}
+init();
+</script>
+</body>
+</html>
