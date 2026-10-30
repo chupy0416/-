@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>원카드 온라인 2인 대전</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            user-select: none;
+        }
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        .card-hover:hover {
+            transform: translateY(-8px);
+            transition: transform 0.2s ease;
+        }
+        .modal-enter {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between">
+
+    <!-- Header -->
+    <header class="bg-slate-800 border-b border-slate-700 py-3 px-6 flex justify-between items-center shadow-md">
+        <div class="flex items-center space-x-2">
+            <span class="text-2xl font-black bg-gradient-to-r from-red-500 to-amber-500 bg-clip-text text-transparent">🎴 ONE CARD ONLINE</span>
+        </div>
+        <div class="flex items-center space-x-4">
+            <div id="mode-badge" class="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-1 rounded-full font-bold">온라인 모드</div>
+            <div id="user-info" class="text-sm text-slate-400">접속 중...</div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow flex flex-col items-center justify-center p-4 max-w-4xl mx-auto w-full">
+
+        <!-- LOBBY VIEW -->
+        <div id="lobby-view" class="w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 shadow-xl modal-enter">
+            <h1 class="text-2xl font-bold text-center mb-6 text-white">2인 대전 원카드 로비</h1>
+            
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-1">닉네임</label>
+                    <input type="text" id="player-nickname" placeholder="닉네임을 입력하세요" maxlength="10" 
+                        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-amber-500">
+                </div>
+
+                <button onclick="createRoom()" 
+                    class="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition transform active:scale-95">
+                    방 만들기
+                </button>
+
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-slate-700"></div>
+                    <span class="flex-shrink mx-4 text-slate-500 text-sm">또는 방 번호 입장</span>
+                    <div class="flex-grow border-t border-slate-700"></div>
+                </div>
+
+                <div class="flex space-x-2">
+                    <input type="text" id="room-id-input" placeholder="방 번호 6자리" maxlength="6" 
+                        class="flex-grow bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-white uppercase focus:outline-none focus:border-amber-500">
+                    <button onclick="joinRoom()" 
+                        class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-6 py-3 rounded-xl transition">
+                        입장
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- WAITING ROOM VIEW -->
+        <div id="waiting-view" class="hidden w-full max-w-md bg-slate-800 border border-slate-700 rounded-2xl p-8 text-center shadow-xl modal-enter">
+            <h2 class="text-xl font-bold mb-2">방 대기실</h2>
+            <p class="text-slate-400 text-sm mb-6">친구에게 방 번호를 공유하세요!</p>
+            
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-4 mb-6 flex justify-between items-center">
+                <span class="text-slate-400 text-sm">방 번호</span>
+                <span id="display-room-id" class="text-2xl font-mono font-black text-amber-400 tracking-wider">------</span>
+            </div>
+
+            <div class="space-y-3 mb-6 text-left">
+                <div class="p-3 bg-slate-900 rounded-xl flex items-center justify-between">
+                    <span id="host-name" class="font-medium text-amber-400">방장: 대기 중...</span>
+                    <span class="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded">호스트</span>
+                </div>
+                <div class="p-3 bg-slate-900 rounded-xl flex items-center justify-between">
+                    <span id="guest-name" class="font-medium text-slate-500">참가자: 대기 중...</span>
+                    <span id="guest-badge" class="text-xs bg-slate-800 text-slate-500 px-2 py-1 rounded">참가 대기</span>
+                </div>
+            </div>
+
+            <div id="host-controls" class="hidden">
+                <button onclick="startGame()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition">
+                    게임 시작하기
+                </button>
+            </div>
+            <div id="guest-controls" class="hidden">
+                <p class="text-slate-400 animate-pulse text-sm">방장이 게임을 시작하기를 기다리는 중입니다...</p>
+            </div>
+        </div>
+
+        <!-- GAMEPLAY VIEW -->
+        <div id="game-view" class="hidden w-full flex flex-col justify-between h-[80vh] max-w-4xl modal-enter">
+            
+            <!-- Opponent Status Bar (Top) -->
+            <div class="bg-slate-800/80 backdrop-blur border border-slate-700 rounded-2xl p-4 flex justify-between items-center mb-4">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-full bg-red-500/20 text-red-400 flex items-center justify-center font-bold">상대</div>
+                    <div>
+                        <div id="opponent-name" class="font-bold text-slate-200">상대방</div>
+                        <div id="opponent-status" class="text-xs text-slate-400">대기 중</div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <div class="bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-700 text-sm">
+                        보유 카드: <span id="opponent-card-count" class="font-bold text-amber-400">0</span>장
+                    </div>
+                </div>
+            </div>
+
+            <!-- Central Board (Deck & Discard Pile) -->
+            <div class="flex-grow flex flex-col items-center justify-center relative my-4">
+                
+                <!-- Game Status Banner / Turn indicator -->
+                <div id="turn-indicator" class="absolute top-0 bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs px-4 py-1.5 rounded-full font-bold transition-all">
+                    턴 안내 메시지
+                </div>
+
+                <div class="flex items-center space-x-12 mt-6">
+                    <!-- Deck (Draw Pile) -->
+                    <div onclick="drawCard()" class="cursor-pointer group flex flex-col items-center">
+                        <div class="w-20 h-28 bg-gradient-to-br from-amber-600 to-orange-700 rounded-xl border-2 border-amber-400 shadow-xl flex items-center justify-center group-hover:scale-105 transition">
+                            <span class="text-amber-200 font-black text-xl">ONE</span>
+                        </div>
+                        <span class="text-xs text-slate-400 mt-2">덱 (<span id="deck-count">0</span>)</span>
+                    </div>
+
+                    <!-- Discard Pile (Top Card) -->
+                    <div class="flex flex-col items-center">
+                        <div id="discard-pile" class="w-20 h-28 rounded-xl border-2 shadow-2xl flex flex-col justify-between p-2 relative bg-white text-slate-900">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <span class="text-xs text-slate-400 mt-2">버린 카드</span>
+                    </div>
+                </div>
+
+                <!-- OneCard Shout Button -->
+                <div id="onecard-shout-container" class="absolute bottom-2 hidden">
+                    <button onclick="shoutOneCard()" class="bg-red-600 hover:bg-red-700 text-white font-black px-6 py-2 rounded-full shadow-lg animate-bounce border-2 border-red-400">
+                        🚨 원카드 외치기!
+                    </button>
+                </div>
+            </div>
+
+            <!-- My Hand Section (Bottom) -->
+            <div class="bg-slate-800/80 backdrop-blur border border-slate-700 rounded-2xl p-4 flex flex-col">
+                <div class="flex justify-between items-center mb-3">
+                    <div class="flex items-center space-x-2">
+                        <span id="my-name" class="font-bold text-white">나</span>
+                        <span class="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded">플레이어</span>
+                    </div>
+                    <div id="stack-penalty-info" class="text-xs text-red-400 font-bold"></div>
+                </div>
+
+                <!-- My Cards Scroll Area -->
+                <div id="my-hand" class="flex overflow-x-auto space-x-2 py-2 min-h-[130px] items-center px-1">
+                    <!-- Rendered cards -->
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Custom Wild Color Picker Modal -->
+    <div id="color-picker-modal" class="hidden fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-2xl text-center max-w-sm w-full modal-enter">
+            <h3 class="text-lg font-bold mb-4 text-white">변경할 색상을 선택하세요</h3>
+            <div class="grid grid-cols-2 gap-4">
+                <button onclick="selectWildColor('red')" class="h-16 bg-red-600 hover:bg-red-500 rounded-xl font-bold text-white shadow-lg transition">빨강 (Red)</button>
+                <button onclick="selectWildColor('blue')" class="h-16 bg-blue-600 hover:bg-blue-500 rounded-xl font-bold text-white shadow-lg transition">파랑 (Blue)</button>
+                <button onclick="selectWildColor('green')" class="h-16 bg-green-600 hover:bg-green-500 rounded-xl font-bold text-white shadow-lg transition">초록 (Green)</button>
+                <button onclick="selectWildColor('yellow')" class="h-16 bg-yellow-500 hover:bg-yellow-400 rounded-xl font-bold text-slate-900 shadow-lg transition">노랑 (Yellow)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over / Result Modal -->
+    <div id="result-modal" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-slate-800 border border-slate-700 p-8 rounded-2xl shadow-2xl text-center max-w-md w-full modal-enter">
+            <div id="result-icon" class="text-5xl mb-3">🏆</div>
+            <h2 id="result-title" class="text-2xl font-black mb-2 text-white">게임 종료</h2>
+            <p id="result-desc" class="text-slate-400 mb-6">승패 결과 안내</p>
+            <button onclick="returnToLobby()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 rounded-xl shadow-lg transition">
+                로비로 돌아가기
+            </button>
+        </div>
+    </div>
+
+    <!-- Custom Notification Box -->
+    <div id="alert-modal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-slate-800 border border-slate-700 p-6 rounded-2xl shadow-2xl text-center max-w-sm w-full modal-enter">
+            <p id="alert-message" class="text-white font-medium mb-6">알림 내용</p>
+            <button onclick="closeAlert()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-3 text-xs text-slate-500 border-t border-slate-800">
+        One Card Online 2-Player Battle &copy; 2026
+    </footer>
+
+    <!-- Firebase SDK Setup & Game Logic with Robust Fallback -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'onecard-online-default';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "AIzaSyDummyKeyForLocalTestingOrPlaceholder",
+            authDomain: "dummy.firebaseapp.com",
+            projectId: "dummy-project"
+        };
+
+        let app, db, auth;
+        let useLocalStorageMode = false;
+        let currentUser = null;
+        let currentRoomId = null;
+        let isHost = false;
+        let unsubscribeRoom = null;
+        let pendingWildCardIndex = null;
+        let localPollTimer = null;
+
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            useLocalStorageMode = true;
+        }
+
+        const COLORS = ['red', 'blue', 'green', 'yellow'];
+        const VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+
+        const userInfoEl = document.getElementById('user-info');
+        const modeBadge = document.getElementById('mode-badge');
+        const nicknameInput = document.getElementById('player-nickname');
+        const lobbyView = document.getElementById('lobby-view');
+        const waitingView = document.getElementById('waiting-view');
+        const gameView = document.getElementById('game-view');
+        const roomIdInput = document.getElementById('room-id-input');
+        const displayRoomId = document.getElementById('display-room-id');
+        const hostNameEl = document.getElementById('host-name');
+        const guestNameEl = document.getElementById('guest-name');
+        const guestBadge = document.getElementById('guest-badge');
+        const hostControls = document.getElementById('host-controls');
+        const guestControls = document.getElementById('guest-controls');
+
+        window.showAlert = function(msg) {
+            document.getElementById('alert-message').innerText = msg;
+            document.getElementById('alert-modal').classList.remove('hidden');
+        }
+        window.closeAlert = function() {
+            document.getElementById('alert-modal').classList.add('hidden');
+        }
+
+        async function initAuth() {
+            if (useLocalStorageMode) {
+                currentUser = { uid: 'local_user_' + Math.random().toString(36).substring(2, 8) };
+                userInfoEl.innerText = `ID: Local (${currentUser.uid.substring(0, 6)})`;
+                modeBadge.innerText = "로컬 시뮬레이션 모드";
+                modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+                return;
+            }
+
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                currentUser = auth.currentUser;
+                userInfoEl.innerText = `ID: ${currentUser ? currentUser.uid.substring(0, 6) : 'Guest'}...`;
+            } catch (err) {
+                console.warn("Auth restriction detected, switching to robust local simulation fallback:", err);
+                useLocalStorageMode = true;
+                currentUser = { uid: 'guest_' + Math.random().toString(36).substring(2, 8) };
+                userInfoEl.innerText = `ID: Local (${currentUser.uid.substring(0, 6)})`;
+                modeBadge.innerText = "로컬 시뮬레이션 모드";
+                modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+            }
+        }
+        initAuth();
+
+        function generateDeck() {
+            let deck = [];
+            COLORS.forEach(color => {
+                VALUES.forEach(val => {
+                    deck.push({ color: color, value: val, id: Math.random().toString(36).substr(2, 9) });
+                });
+            });
+            COLORS.forEach(color => {
+                deck.push({ color: color, value: '+2', id: Math.random().toString(36).substr(2, 9) });
+            });
+            deck.push({ color: 'wild', value: 'JOKER', id: Math.random().toString(36).substr(2, 9) });
+            deck.push({ color: 'wild', value: 'JOKER', id: Math.random().toString(36).substr(2, 9) });
+            return deck.sort(() => Math.random() - 0.5);
+        }
+
+        function getRoomRef(roomId) {
+            return doc(db, 'artifacts', appId, 'rooms', roomId);
+        }
+
+        async function saveRoomState(roomId, state) {
+            if (useLocalStorageMode) {
+                localStorage.setItem('onecard_room_' + roomId, JSON.stringify(state));
+                return;
+            }
+            try {
+                await setDoc(getRoomRef(roomId), state);
+            } catch (err) {
+                if (err.code === 'permission-denied' || err.message.includes('Missing or insufficient permissions')) {
+                    useLocalStorageMode = true;
+                    modeBadge.innerText = "로컬 시뮬레이션 모드";
+                    modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+                    localStorage.setItem('onecard_room_' + roomId, JSON.stringify(state));
+                } else {
+                    throw err;
+                }
+            }
+        }
+
+        async function getRoomState(roomId) {
+            if (useLocalStorageMode) {
+                const data = localStorage.getItem('onecard_room_' + roomId);
+                return data ? JSON.parse(data) : null;
+            }
+            try {
+                const snap = await getDoc(getRoomRef(roomId));
+                return snap.exists() ? snap.data() : null;
+            } catch (err) {
+                if (err.code === 'permission-denied' || err.message.includes('Missing or insufficient permissions')) {
+                    useLocalStorageMode = true;
+                    modeBadge.innerText = "로컬 시뮬레이션 모드";
+                    modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+                    const data = localStorage.getItem('onecard_room_' + roomId);
+                    return data ? JSON.parse(data) : null;
+                }
+                throw err;
+            }
+        }
+
+        async function updateRoomState(roomId, updaterFn) {
+            if (useLocalStorageMode) {
+                let state = await getRoomState(roomId);
+                if (state) {
+                    updaterFn(state);
+                    await saveRoomState(roomId, state);
+                }
+                return;
+            }
+            try {
+                const roomRef = getRoomRef(roomId);
+                const snap = await getDoc(roomRef);
+                if (snap.exists()) {
+                    let state = snap.data();
+                    updaterFn(state);
+                    await setDoc(roomRef, state);
+                }
+            } catch (err) {
+                if (err.code === 'permission-denied' || err.message.includes('Missing or insufficient permissions')) {
+                    useLocalStorageMode = true;
+                    modeBadge.innerText = "로컬 시뮬레이션 모드";
+                    modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+                    let state = await getRoomState(roomId);
+                    if (state) {
+                        updaterFn(state);
+                        await saveRoomState(roomId, state);
+                    }
+                } else {
+                    throw err;
+                }
+            }
+        }
+
+        window.createRoom = async function() {
+            const nickname = nicknameInput.value.trim();
+            if (!nickname) {
+                showAlert("닉네임을 입력해주세요!");
+                return;
+            }
+
+            const roomId = Math.floor(100000 + Math.random() * 900000).toString();
+            currentRoomId = roomId;
+            isHost = true;
+
+            const initialGameState = {
+                roomId: roomId,
+                status: 'waiting',
+                host: { uid: currentUser ? currentUser.uid : 'local_host', name: nickname, cards: [], shoutedOneCard: false },
+                guest: { uid: '', name: '', cards: [], shoutedOneCard: false },
+                deck: [],
+                discardPile: [],
+                currentTurn: '',
+                attackStack: 0,
+                currentWildColor: '',
+                winner: '',
+                winnerName: '',
+                lastActionMsg: `${nickname}님이 방을 만들었습니다.`
+            };
+
+            await saveRoomState(roomId, initialGameState);
+
+            lobbyView.classList.add('hidden');
+            waitingView.classList.remove('hidden');
+            displayRoomId.innerText = roomId;
+            hostNameEl.innerText = `방장: ${nickname}`;
+            hostControls.classList.remove('hidden');
+            guestControls.classList.add('hidden');
+
+            listenToRoom(roomId);
+        };
+
+        window.joinRoom = async function() {
+            const nickname = nicknameInput.value.trim();
+            const roomId = roomIdInput.value.trim().toUpperCase();
+
+            if (!nickname) {
+                showAlert("닉네임을 입력해주세요!");
+                return;
+            }
+            if (!roomId || roomId.length !== 6) {
+                showAlert("올바른 6자리 방 번호를 입력해주세요!");
+                return;
+            }
+
+            const state = await getRoomState(roomId);
+            if (!state) {
+                showAlert("존재하지 않는 방 번호입니다.");
+                return;
+            }
+
+            if (state.status !== 'waiting') {
+                showAlert("이미 게임이 시작되었거나 종료된 방입니다.");
+                return;
+            }
+
+            currentRoomId = roomId;
+            isHost = false;
+            const currentUid = currentUser ? currentUser.uid : 'local_guest';
+
+            await updateRoomState(roomId, (s) => {
+                s.guest.uid = currentUid;
+                s.guest.name = nickname;
+                s.lastActionMsg = `${nickname}님이 입장했습니다.`;
+            });
+
+            lobbyView.classList.add('hidden');
+            waitingView.classList.remove('hidden');
+            displayRoomId.innerText = roomId;
+            hostNameEl.innerText = `방장: ${state.host.name}`;
+            guestNameEl.innerText = `참가자: ${nickname}`;
+            guestBadge.className = "text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded";
+            guestBadge.innerText = "참가 완료";
+            hostControls.classList.add('hidden');
+            guestControls.classList.remove('hidden');
+
+            listenToRoom(roomId);
+        };
+
+        function listenToRoom(roomId) {
+            if (unsubscribeRoom) {
+                unsubscribeRoom();
+                unsubscribeRoom = null;
+            }
+            if (localPollTimer) {
+                clearInterval(localPollTimer);
+                localPollTimer = null;
+            }
+
+            if (useLocalStorageMode) {
+                localPollTimer = setInterval(async () => {
+                    const state = await getRoomState(roomId);
+                    if (state) updateUIState(state);
+                }, 1000);
+                return;
+            }
+
+            try {
+                const roomRef = getRoomRef(roomId);
+                unsubscribeRoom = onSnapshot(roomRef, (docSnap) => {
+                    if (!docSnap.exists()) return;
+                    const state = docSnap.data();
+                    updateUIState(state);
+                }, (error) => {
+                    console.warn("Snapshot fallback to polling:", error);
+                    useLocalStorageMode = true;
+                    modeBadge.innerText = "로컬 시뮬레이션 모드";
+                    modeBadge.className = "text-xs bg-blue-500/20 text-blue-400 px-2.5 py-1 rounded-full font-bold";
+                    localPollTimer = setInterval(async () => {
+                        const state = await getRoomState(roomId);
+                        if (state) updateUIState(state);
+                    }, 1000);
+                });
+            } catch (err) {
+                useLocalStorageMode = true;
+                localPollTimer = setInterval(async () => {
+                    const state = await getRoomState(roomId);
+                    if (state) updateUIState(state);
+                }, 1000);
+            }
+        }
+
+        window.startGame = async function() {
+            if (!isHost || !currentRoomId) return;
+
+            const state = await getRoomState(currentRoomId);
+            if (!state || !state.guest.uid) {
+                showAlert("참가자가 아직 없습니다!");
+                return;
+            }
+
+            let deck = generateDeck();
+            let hostCards = deck.splice(0, 5);
+            let guestCards = deck.splice(0, 5);
+            
+            let initialDiscardIndex = deck.findIndex(c => c.color !== 'wild' && c.value !== '+2');
+            if (initialDiscardIndex === -1) initialDiscardIndex = 0;
+            let discardPile = [deck.splice(initialDiscardIndex, 1)[0]];
+
+            await updateRoomState(currentRoomId, (s) => {
+                s.status = 'playing';
+                s.deck = deck;
+                s.discardPile = discardPile;
+                s.host.cards = hostCards;
+                s.guest.cards = guestCards;
+                s.currentTurn = s.host.uid;
+                s.attackStack = 0;
+                s.currentWildColor = '';
+                s.winner = '';
+                s.winnerName = '';
+                s.lastActionMsg = '게임이 시작되었습니다! 방장 턴입니다.';
+            });
+        };
+
+        function updateUIState(state) {
+            if (state.status === 'waiting') {
+                hostNameEl.innerText = `방장: ${state.host.name}`;
+                if (state.guest.uid) {
+                    guestNameEl.innerText = `참가자: ${state.guest.name}`;
+                    guestNameEl.className = "font-medium text-green-400";
+                    guestBadge.className = "text-xs bg-green-500/20 text-green-400 px-2 py-1 rounded";
+                    guestBadge.innerText = "참가 완료";
+                }
+                return;
+            }
+
+            if (state.status === 'playing' || state.status === 'finished') {
+                waitingView.classList.add('hidden');
+                lobbyView.classList.add('hidden');
+                gameView.classList.remove('hidden');
+            }
+
+            const myUid = currentUser ? currentUser.uid : (isHost ? state.host.uid : state.guest.uid);
+            const amIHost = myUid === state.host.uid;
+            const myData = amIHost ? state.host : state.guest;
+            const opponentData = amIHost ? state.guest : state.host;
+
+            document.getElementById('my-name').innerText = myData.name;
+            document.getElementById('opponent-name').innerText = opponentData.name;
+            document.getElementById('opponent-card-count').innerText = opponentData.cards.length;
+            document.getElementById('deck-count').innerText = state.deck.length;
+
+            const topCard = state.discardPile[state.discardPile.length - 1];
+            renderDiscardPile(topCard, state.currentWildColor);
+
+            renderMyHand(myData.cards, state.currentTurn === myUid, topCard, state.currentWildColor, state.attackStack);
+
+            const isMyTurn = state.currentTurn === myUid;
+            const turnIndicator = document.getElementById('turn-indicator');
+            if (isMyTurn) {
+                turnIndicator.innerText = state.attackStack > 0 ? `🔥 방어 필요! (+${state.attackStack} 카드 내거나 드로우)` : "✨ 당신의 턴입니다!";
+                turnIndicator.className = "absolute top-0 bg-green-500/20 border border-green-500/40 text-green-300 text-xs px-4 py-1.5 rounded-full font-bold animate-pulse";
+            } else {
+                turnIndicator.innerText = `⏳ 상대방(${opponentData.name})의 턴입니다...`;
+                turnIndicator.className = "absolute top-0 bg-slate-700/80 border border-slate-600 text-slate-300 text-xs px-4 py-1.5 rounded-full font-bold";
+            }
+
+            const penaltyInfo = document.getElementById('stack-penalty-info');
+            penaltyInfo.innerText = state.attackStack > 0 ? `누적 공격: +${state.attackStack}` : '';
+
+            const shoutContainer = document.getElementById('onecard-shout-container');
+            if (myData.cards.length === 1 && !myData.shoutedOneCard) {
+                shoutContainer.classList.remove('hidden');
+            } else {
+                shoutContainer.classList.add('hidden');
+            }
+
+            if (state.status === 'finished') {
+                showResultModal(state.winner === myUid, state.winnerName || '누군가');
+            }
+        }
+
+        function renderDiscardPile(card, wildColor) {
+            const pile = document.getElementById('discard-pile');
+            if (!card) return;
+
+            let bgColor = getCardBgColor(card.color, wildColor);
+            let textColor = getCardTextColor(card.color, wildColor);
+
+            pile.className = `w-20 h-28 rounded-xl border-2 shadow-2xl flex flex-col justify-between p-2 relative ${bgColor} ${textColor} border-slate-600`;
+            pile.innerHTML = `
+                <div class="text-xs font-black">${card.value}</div>
+                <div class="text-center font-black text-xl">${getCardSymbol(card.value)}</div>
+                <div class="text-xs font-black self-end rotate-180">${card.value}</div>
+            `;
+        }
+
+        function getCardBgColor(color, wildColor) {
+            if (color === 'wild') {
+                if (wildColor === 'red') return 'bg-red-600';
+                if (wildColor === 'blue') return 'bg-blue-600';
+                if (wildColor === 'green') return 'bg-green-600';
+                if (wildColor === 'yellow') return 'bg-yellow-500 text-slate-900';
+                return 'bg-gradient-to-br from-purple-600 via-pink-600 to-indigo-600';
+            }
+            if (color === 'red') return 'bg-red-600';
+            if (color === 'blue') return 'bg-blue-600';
+            if (color === 'green') return 'bg-green-600';
+            if (color === 'yellow') return 'bg-yellow-500 text-slate-900';
+            return 'bg-slate-700';
+        }
+
+        function getCardTextColor(color, wildColor) {
+            if (color === 'yellow' || (color === 'wild' && wildColor === 'yellow')) return 'text-slate-900';
+            return 'text-white';
+        }
+
+        function getCardSymbol(val) {
+            if (val === 'JOKER') return '★';
+            if (val === '+2') return '+2';
+            return val;
+        }
+
+        function renderMyHand(cards, isMyTurn, topCard, wildColor, attackStack) {
+            const handContainer = document.getElementById('my-hand');
+            handContainer.innerHTML = '';
+
+            cards.forEach((card, index) => {
+                const cardEl = document.createElement('div');
+                let bgColor = getCardBgColor(card.color);
+                let textColor = getCardTextColor(card.color);
+
+                let playable = false;
+                if (isMyTurn) {
+                    if (attackStack > 0) {
+                        if (card.value === '+2' || card.value === 'JOKER') playable = true;
+                    } else {
+                        let activeColor = wildColor || topCard.color;
+                        if (card.color === 'wild' || card.color === activeColor || card.value === topCard.value) {
+                            playable = true;
+                        }
+                    }
+                }
+
+                cardEl.className = `w-16 h-24 rounded-lg border flex flex-col justify-between p-1.5 cursor-pointer shadow-md transition transform ${bgColor} ${textColor} ${playable ? 'border-amber-400 border-2 card-hover -translate-y-2' : 'border-slate-600 opacity-60'}`;
+                cardEl.innerHTML = `
+                    <div class="text-[10px] font-black">${card.value}</div>
+                    <div class="text-center font-black text-sm">${getCardSymbol(card.value)}</div>
+                    <div class="text-[10px] font-black self-end rotate-180">${card.value}</div>
+                `;
+
+                if (playable) {
+                    cardEl.onclick = () => playCard(index, card);
+                } else {
+                    cardEl.onclick = () => {
+                        if (!isMyTurn) showAlert("당신의 턴이 아닙니다!");
+                        else if (attackStack > 0) showAlert(`공격 방어 중입니다! +2 카드나 조커만 낼 수 있습니다.`);
+                        else showAlert("낼 수 없는 카드입니다.");
+                    };
+                }
+
+                handContainer.appendChild(cardEl);
+            });
+        }
+
+        window.playCard = async function(cardIndex, card) {
+            const state = await getRoomState(currentRoomId);
+            if (!state) return;
+
+            const myUid = currentUser ? currentUser.uid : (isHost ? state.host.uid : state.guest.uid);
+            if (state.currentTurn !== myUid) return;
+
+            const amIHost = myUid === state.host.uid;
+            let myCards = amIHost ? [...state.host.cards] : [...state.guest.cards];
+            let opponentCards = amIHost ? [...state.guest.cards] : [...state.host.cards];
+
+            myCards.splice(cardIndex, 1);
+
+            if (card.color === 'wild') {
+                pendingWildCardIndex = cardIndex;
+                showColorPickerModal(card, myCards, opponentCards, amIHost, state);
+                return;
+            }
+
+            await processCardPlayCompletion(card, myCards, opponentCards, amIHost, state, '');
+        };
+
+        window.showColorPickerModal = function(card, myCards, opponentCards, amIHost, state) {
+            document.getElementById('color-picker-modal').classList.remove('hidden');
+            window._tempWildAction = { card, myCards, opponentCards, amIHost, state };
+        };
+
+        window.selectWildColor = async function(color) {
+            document.getElementById('color-picker-modal').classList.add('hidden');
+            const { card, myCards, opponentCards, amIHost, state } = window._tempWildAction;
+            await processCardPlayCompletion(card, myCards, opponentCards, amIHost, state, color);
+        };
+
+        async function processCardPlayCompletion(card, myCards, opponentCards, amIHost, state, chosenWildColor) {
+            await updateRoomState(currentRoomId, (s) => {
+                let newDiscardPile = [...s.discardPile, card];
+                let newAttackStack = s.attackStack;
+                let nextTurnUid = amIHost ? s.guest.uid : s.host.uid;
+
+                if (card.value === '+2') {
+                    newAttackStack += 2;
+                } else if (newAttackStack > 0) {
+                    newAttackStack = 0;
+                }
+
+                let gameStatus = s.status;
+                let winnerUid = s.winner;
+                let winnerName = s.winnerName;
+
+                const myUid = currentUser ? currentUser.uid : (isHost ? s.host.uid : s.guest.uid);
+                if (myCards.length === 0) {
+                    winnerUid = myUid;
+                    winnerName = amIHost ? s.host.name : s.guest.name;
+                    gameStatus = 'finished';
+                }
+
+                s.status = gameStatus;
+                s.discardPile = newDiscardPile;
+                if (amIHost) {
+                    s.host.cards = myCards;
+                    s.host.shoutedOneCard = false;
+                } else {
+                    s.guest.cards = myCards;
+                    s.guest.shoutedOneCard = false;
+                }
+                s.currentTurn = nextTurnUid;
+                s.attackStack = newAttackStack;
+                s.currentWildColor = chosenWildColor || (card.color === 'wild' ? '' : card.color);
+                s.winner = winnerUid;
+                s.winnerName = winnerName;
+                s.lastActionMsg = `${amIHost ? s.host.name : s.guest.name}님이 [${card.color} ${card.value}] 카드를 냈습니다.`;
+            });
+        }
+
+        window.drawCard = async function() {
+            const state = await getRoomState(currentRoomId);
+            if (!state) return;
+
+            const myUid = currentUser ? currentUser.uid : (isHost ? state.host.uid : state.guest.uid);
+            if (state.currentTurn !== myUid) {
+                showAlert("당신의 차례가 아닙니다!");
+                return;
+            }
+
+            await updateRoomState(currentRoomId, (s) => {
+                let deck = [...s.deck];
+                let discardPile = [...s.discardPile];
+
+                if (deck.length === 0 && discardPile.length > 1) {
+                    let top = discardPile.pop();
+                    deck = discardPile.sort(() => Math.random() - 0.5);
+                    discardPile = [top];
+                    s.discardPile = discardPile;
+                }
+
+                if (deck.length === 0) {
+                    return;
+                }
+
+                const amIHost = myUid === s.host.uid;
+                let myCards = amIHost ? [...s.host.cards] : [...s.guest.cards];
+                let drawCount = s.attackStack > 0 ? s.attackStack : 1;
+
+                let drawn = deck.splice(0, drawCount);
+                myCards.push(...drawn);
+
+                let nextTurnUid = amIHost ? s.guest.uid : s.host.uid;
+
+                s.deck = deck;
+                if (amIHost) {
+                    s.host.cards = myCards;
+                } else {
+                    s.guest.cards = myCards;
+                }
+                s.currentTurn = nextTurnUid;
+                s.attackStack = 0;
+                s.lastActionMsg = `${amIHost ? s.host.name : s.guest.name}님이 카드를 ${drawCount}장 뽑았습니다.`;
+            });
+        };
+
+        window.shoutOneCard = async function() {
+            const state = await getRoomState(currentRoomId);
+            if (!state) return;
+
+            const myUid = currentUser ? currentUser.uid : (isHost ? state.host.uid : state.guest.uid);
+            const amIHost = myUid === state.host.uid;
+
+            await updateRoomState(currentRoomId, (s) => {
+                if (amIHost) {
+                    s.host.shoutedOneCard = true;
+                } else {
+                    s.guest.shoutedOneCard = true;
+                }
+                s.lastActionMsg = `🚨 ${amIHost ? s.host.name : s.guest.name}님이 원카드를 외쳤습니다!`;
+            });
+            showAlert("원카드를 외쳤습니다!");
+        };
+
+        function showResultModal(isWinner, winnerName) {
+            const modal = document.getElementById('result-modal');
+            const title = document.getElementById('result-title');
+            const desc = document.getElementById('result-desc');
+            const icon = document.getElementById('result-icon');
+
+            if (isWinner) {
+                icon.innerText = "👑";
+                title.innerText = "승리했습니다!";
+                desc.innerText = "모든 카드를 가장 먼저 털어냈습니다.";
+            } else {
+                icon.innerText = "💧";
+                title.innerText = "패배했습니다...";
+                desc.innerText = `${winnerName}님이 승리했습니다.`;
+            }
+            modal.classList.remove('hidden');
+        }
+
+        window.returnToLobby = function() {
+            document.getElementById('result-modal').classList.add('hidden');
+            gameView.classList.add('hidden');
+            waitingView.classList.add('hidden');
+            lobbyView.classList.remove('hidden');
+            currentRoomId = null;
+            isHost = false;
+            if (unsubscribeRoom) {
+                unsubscribeRoom();
+                unsubscribeRoom = null;
+            }
+            if (localPollTimer) {
+                clearInterval(localPollTimer);
+                localPollTimer = null;
+            }
+        };
+
+    </script>
+</body>
+</html>
